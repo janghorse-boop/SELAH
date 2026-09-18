@@ -64,7 +64,8 @@ export function SettingsScreen({
 
       {!storageOk && (
         <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-          이 브라우저에서는 설정과 기록을 저장할 수 없습니다(시크릿 모드 등). 측정은 정상 동작합니다.
+          이 브라우저에서는 설정을 저장할 수 없습니다(시크릿 모드 등). 다음에 열면 기본값으로
+          돌아가지만, 측정은 정상 동작합니다.
         </div>
       )}
 

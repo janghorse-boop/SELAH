@@ -26,10 +26,11 @@ export function AboutScreen({ onExit }: { onExit: () => void }) {
         </div>
       </div>
 
-      <div className="mt-6 text-[10px] uppercase tracking-wider text-neutral-400">저장되는 것</div>
+      <div className="mt-6 text-[10px] uppercase tracking-wider text-neutral-400">남기지 않습니다</div>
       <p className="mt-1.5 text-xs leading-relaxed text-neutral-600">
-        측정 결과는 <b>이 폰 안에만</b> 저장됩니다. 서버로 보내지 않고, 계정도 없습니다.
-        소리를 녹음하지 않습니다.
+        측정 결과를 <b>어디에도 남기지 않습니다.</b> 화면을 나가면 그대로 사라집니다.
+        소리를 녹음하지 않고, 서버로 보내지 않고, 계정도 없습니다.
+        이 폰에 저장되는 것은 <b>설정값뿐</b>입니다.
       </p>
 
       <div className="mt-6 text-[10px] uppercase tracking-wider text-neutral-400">라이선스</div>

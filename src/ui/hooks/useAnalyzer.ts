@@ -71,8 +71,7 @@ export function useAnalyzer(settings: Settings) {
   const howlsRef = useRef<HowlRecord[]>([]);
   const gapsRef = useRef<Gap[]>([]);
 
-  // 화면이 사라질 때 자원을 확실히 놓는다. 세션 저장은 하지 않는다 —
-  // 저장은 화면이 stop() 을 부를 때만 한다. 여기서는 마이크와 타이머만 끈다.
+  // 화면이 사라질 때 자원을 확실히 놓는다. 마이크와 타이머만 끈다.
   useEffect(() => {
     return () => {
       genRef.current++;
