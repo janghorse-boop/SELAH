@@ -65,6 +65,7 @@ export const SOURCES: SourceGuide[] = [
       { from: 150, to: 250, label: "부풀음", kind: "problem" },
       { from: 250, to: 1000, label: "몸통", kind: "body" },
       { from: 3000, to: 5000, label: "존재감", kind: "clarity" },
+      { from: 6000, to: 8000, label: "거침", kind: "problem" },
       { from: 10000, to: 20000, label: "공기감", kind: "air" },
     ],
     problems: [
@@ -118,7 +119,7 @@ export const SOURCES: SourceGuide[] = [
     ],
     howlBands: null,
     howlNote: "선으로 직접 들어오므로 하울링이 원리적으로 나지 않습니다.",
-    conflicts: ["베이스기타 (60~120Hz)", "보컬 (1~3kHz)"],
+    conflicts: ["베이스기타 — 60~120Hz 에서 겹친다", "보컬 — 1~3kHz 에서 겹친다"],
   },
   {
     id: "acoustic",
@@ -127,6 +128,7 @@ export const SOURCES: SourceGuide[] = [
     highPass: "하이패스 80Hz",
     zones: [
       { from: 20, to: 80, label: "잘라냄", kind: "cut" },
+      { from: 80, to: 200, label: "바디 공명", kind: "problem" },
       { from: 200, to: 250, label: "통울림", kind: "problem" },
       { from: 250, to: 1000, label: "몸통", kind: "body" },
       { from: 3000, to: 5000, label: "픽업 날카로움", kind: "problem" },
@@ -151,7 +153,7 @@ export const SOURCES: SourceGuide[] = [
     ],
     howlBands: [100, 125, 160, 200],
     howlNote: "마이크를 함께 쓸 때만 납니다. 바디 공명이 원인이므로 EQ 보다 사운드홀 커버가 먼저입니다.",
-    conflicts: ["보컬 (2~4kHz)"],
+    conflicts: ["보컬 — 2~4kHz 에서 겹친다"],
   },
   {
     id: "bass",
@@ -160,7 +162,7 @@ export const SOURCES: SourceGuide[] = [
     highPass: "하이패스 40Hz — 그 아래는 스피커만 괴롭힙니다.",
     zones: [
       { from: 20, to: 40, label: "잘라냄", kind: "cut" },
-      { from: 80, to: 120, label: "무게", kind: "body" },
+      { from: 40, to: 120, label: "무게", kind: "body" },
       { from: 200, to: 400, label: "탁함", kind: "problem" },
       { from: 700, to: 1000, label: "손가락 소리", kind: "clarity" },
     ],
@@ -183,7 +185,7 @@ export const SOURCES: SourceGuide[] = [
     ],
     howlBands: null,
     howlNote: "선으로 직접 들어오므로 하울링이 원리적으로 나지 않습니다.",
-    conflicts: ["킥드럼 (50~120Hz)"],
+    conflicts: ["킥드럼 — 50~120Hz 에서 겹친다"],
   },
   {
     id: "eguitar",
@@ -192,6 +194,7 @@ export const SOURCES: SourceGuide[] = [
     highPass: "하이패스 100Hz",
     zones: [
       { from: 20, to: 100, label: "잘라냄", kind: "cut" },
+      { from: 100, to: 400, label: "저역 몸통", kind: "body" },
       { from: 400, to: 800, label: "박스 소리", kind: "problem" },
       { from: 800, to: 2000, label: "몸통", kind: "body" },
       { from: 2000, to: 4000, label: "쏘는 소리", kind: "problem" },
@@ -210,13 +213,13 @@ export const SOURCES: SourceGuide[] = [
       },
       {
         symptom: "보컬을 덮는다",
-        detail: "2~4kHz 를 비워 보컬 자리를 만듭니다. 기타를 줄이는 것보다 자리를 나누는 편이 낫습니다.",
+        detail: "기타와 보컬이 2~4kHz 에서 겹칩니다. 「귀를 찌른다」와 같은 대역이니, 이미 깎았다면 더 깎지 말고 기타 볼륨을 조금 내리십시오.",
         range: [2000, 4000],
       },
     ],
     howlBands: [250, 500, 1000],
     howlNote: "앰프를 마이킹할 때만 납니다. 모델러 직결이면 나지 않습니다.",
-    conflicts: ["보컬 (2~4kHz)", "신디사이저 (1~3kHz)"],
+    conflicts: ["보컬 — 2~4kHz 에서 겹친다", "신디사이저 — 1~3kHz 에서 겹친다"],
   },
   {
     id: "edrum",
