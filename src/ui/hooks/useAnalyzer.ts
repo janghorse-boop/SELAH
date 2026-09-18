@@ -50,6 +50,8 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
    * 초당 30번 계속 돈다. 화면은 「정지됨」인데 마이크는 살아 있다.
    */
   const startingRef = useRef(false);
+  /** 이 훅이 아직 살아 있는가. await 뒤에서 「붙여도 되는지」를 판단하는 데 쓴다. */
+  const aliveRef = useRef(true);
   const detectorRef = useRef<HowlDetector | null>(null);
   const startedAtRef = useRef(0);
   const lastHowlAtRef = useRef(0);
@@ -62,11 +64,15 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
 
   // 화면이 사라질 때 자원을 확실히 놓는다. 세션 저장은 하지 않는다 —
   // 저장은 화면이 stop() 을 부를 때만 한다. 여기서는 마이크와 타이머만 끈다.
-  useEffect(() => () => {
-    handleRef.current?.stop();
-    handleRef.current = null;
-    startingRef.current = false;
-    if (adviceTimerRef.current) clearTimeout(adviceTimerRef.current);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      handleRef.current?.stop();
+      handleRef.current = null;
+      startingRef.current = false;
+      if (adviceTimerRef.current) clearTimeout(adviceTimerRef.current);
+    };
   }, []);
 
   const start = useCallback(async () => {
@@ -163,6 +169,14 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
           setState((p) => ({ ...p, gaps: [...gapsRef.current] }));
         },
       });
+
+      if (!aliveRef.current) {
+        // 권한 창이 떠 있는 동안 화면이 사라졌다. 정리 코드는 그때 핸들이
+        // 없어서 아무것도 못 했고, 지금 붙이면 **아무도 멈출 수 없는 마이크**가 된다.
+        // 열리자마자 끈다.
+        h.stop();
+        return;
+      }
 
       handleRef.current = h;
       setState((p) => ({ ...p, running: true, error: null, warning: h.report.message }));
