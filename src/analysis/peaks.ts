@@ -95,24 +95,32 @@ export function findPeaks(
 ): PeakInfo[] {
   const minDb = opts.minDb ?? -80;
   const maxPeaks = opts.maxPeaks ?? 8;
-  const found: PeakInfo[] = [];
 
+  // 먼저 위치와 높이만 모은다. 네 비율은 살아남은 봉우리에만 계산한다.
+  // 실제 마이크 프레임은 매끈하지 않아 국소 최대가 1,600개쯤 나온다 —
+  // 테스트가 쓰는 매끈한 핑크노이즈는 0개라 이 비용이 드러나지 않았다.
+  // 전부 계산하면 프레임당 700ms 로 예산(33ms)을 스무 배 넘기고,
+  // 그러면 매 프레임이 「끊김」으로 잡혀 판정 이력이 초기화되어
+  // 하울링을 영영 보고하지 못한다.
+  const candidates: { bin: number; db: number }[] = [];
   for (let i = 2; i < s.db.length - 2; i++) {
     const v = s.db[i];
     if (v < minDb) continue;
     if (!(v > s.db[i - 1] && v >= s.db[i + 1])) continue;
     if (!(v > s.db[i - 2] && v >= s.db[i + 2])) continue;
-    found.push({
-      bin: i,
-      hz: i * s.binHz,
-      db: v,
-      pnpr: computePnpr(s, i),
-      papr: computePapr(s, i),
-      phpr: computePhpr(s, i),
-      shpr: computeShpr(s, i),
-    });
+    candidates.push({ bin: i, db: v });
   }
 
-  found.sort((a, b) => b.db - a.db);
-  return found.slice(0, maxPeaks);
+  // 정렬 키가 db 뿐이라 살아남는 봉우리는 예전과 같다.
+  candidates.sort((a, b) => b.db - a.db);
+
+  return candidates.slice(0, maxPeaks).map((p) => ({
+    bin: p.bin,
+    hz: p.bin * s.binHz,
+    db: p.db,
+    pnpr: computePnpr(s, p.bin),
+    papr: computePapr(s, p.bin),
+    phpr: computePhpr(s, p.bin),
+    shpr: computeShpr(s, p.bin),
+  }));
 }

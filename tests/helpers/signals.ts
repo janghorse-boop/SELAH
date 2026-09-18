@@ -64,3 +64,23 @@ export function addPeak(
 export function cloneSpectrum(s: Spectrum): Spectrum {
   return { db: new Float32Array(s.db), binHz: s.binHz };
 }
+
+/**
+ * 실제 마이크 프레임 모양. bin 마다 전력이 지수분포라 매끈하지 않고,
+ * 국소 최대가 1,600개쯤 생긴다. 매끈한 신호(핑크노이즈는 0개)만으로
+ * 시험하면 봉우리 검출 비용이 드러나지 않는다.
+ */
+export function jaggedFloor(refDbAt1kHz: number, seed = 1): Spectrum {
+  let state = seed >>> 0;
+  const rnd = () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return (state >>> 8) / 16777216;
+  };
+  const db = new Float32Array(BIN_COUNT);
+  for (let i = 0; i < BIN_COUNT; i++) {
+    const hz = Math.max(i * BIN_HZ, BIN_HZ);
+    const mean = refDbAt1kHz - 10 * Math.log10(hz / 1000);
+    db[i] = mean + 10 * Math.log10(-Math.log(1 - rnd()));
+  }
+  return { db, binHz: BIN_HZ };
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { findPeaks, computePnpr, computePapr, computePhpr, computeShpr } from "../../src/analysis/peaks";
-import { tonePeak, harmonicTone, pinkNoise, flatFloor } from "../helpers/signals";
+import { tonePeak, harmonicTone, pinkNoise, flatFloor, jaggedFloor } from "../helpers/signals";
 
 describe("봉우리 검출", () => {
   it("좁은 봉우리 하나를 그 주파수에서 찾는다", () => {
@@ -117,5 +117,27 @@ describe("SHPR — 남의 배음이 아닌가", () => {
     const s = tonePeak(63, -20, -100);
     const bin = Math.round(63 / s.binHz);
     expect(computeShpr(s, bin)).toBeGreaterThan(15);
+  });
+});
+
+describe("실제 프레임 모양에서의 비용", () => {
+  it("들쭉날쭉한 프레임에서도 한 프레임 예산 안에 끝난다", () => {
+    // 실제 프레임에는 국소 최대가 1,600개쯤 있다. 매끈한 신호(0개)로만
+    // 시험하면 이 비용이 안 보인다. 예산(33ms)을 넘기면 매 프레임이
+    // 「끊김」으로 잡혀 판정 이력이 초기화되고, 하울링을 영영 못 잡는다.
+    const s = jaggedFloor(-40);
+    const t0 = performance.now();
+    const peaks = findPeaks(s);
+    const ms = performance.now() - t0;
+    expect(peaks.length).toBeLessThanOrEqual(8);
+    // 넉넉한 한계다 — 고친 구현은 5ms 안팎, 고치기 전은 700ms 였다.
+    expect(ms).toBeLessThan(100);
+  });
+
+  it("들쭉날쭉한 프레임에서도 가장 큰 것부터 돌려준다", () => {
+    const peaks = findPeaks(jaggedFloor(-40));
+    for (let i = 1; i < peaks.length; i++) {
+      expect(peaks[i - 1].db).toBeGreaterThanOrEqual(peaks[i].db);
+    }
   });
 });
