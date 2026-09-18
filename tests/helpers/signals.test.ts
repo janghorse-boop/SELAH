@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tonePeak, pinkNoise, harmonicTone, flatFloor } from "./signals";
+import { tonePeak, pinkNoise, harmonicTone, flatFloor, addPeak, cloneSpectrum, BIN_HZ } from "./signals";
 
 describe("합성 스펙트럼 생성기", () => {
   it("flatFloor 는 모든 bin 이 같은 값이다", () => {
@@ -36,5 +36,26 @@ describe("합성 스펙트럼 생성기", () => {
     expect(at(440)).toBeGreaterThan(-30);
     expect(at(660)).toBeGreaterThan(-30);
     expect(at(1500)).toBeLessThan(-80);
+  });
+
+  it("addPeak 은 같은 자리에 두 번 더하면 전력으로 합산한다 (+3dB)", () => {
+    const s = flatFloor(-100);
+    const bin = Math.round(1000 / BIN_HZ);
+    addPeak(s, 1000, -20, -100);
+    const once = s.db[bin];
+    addPeak(s, 1000, -20, -100);
+    const twice = s.db[bin];
+    // 같은 크기를 두 번 더하면 전력이 두 배 = +3.01dB.
+    // dB 를 그냥 더하면 -40 근처가 되고, 「큰 쪽만 남기기」면 변화가 0 이다 —
+    // 이 한 줄이 둘 다 잡아낸다. 다른 테스트는 봉우리가 겹치지 않아 못 잡는다.
+    expect(twice - once).toBeCloseTo(3.01, 1);
+  });
+
+  it("cloneSpectrum 은 원본과 분리된 복사본을 준다", () => {
+    const a = tonePeak(1000, -20, -100);
+    const b = cloneSpectrum(a);
+    b.db[10] = 0;
+    expect(a.db[10]).not.toBe(0);
+    expect(b.binHz).toBe(a.binHz);
   });
 });
