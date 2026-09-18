@@ -1,6 +1,6 @@
-import { RehearsalScreen } from "./screens/RehearsalScreen";
+import { WorshipScreen } from "./screens/WorshipScreen";
 import { DEFAULT_SETTINGS } from "../storage/settings";
 
 export default function App() {
-  return <RehearsalScreen settings={DEFAULT_SETTINGS} onExit={() => {}} />;
+  return <WorshipScreen settings={DEFAULT_SETTINGS} onExit={() => {}} />;
 }
