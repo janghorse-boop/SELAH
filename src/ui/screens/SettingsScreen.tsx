@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BandPlan, Sensitivity } from "../../analysis/types";
 import { saveSettings, isStorageAvailable, type Settings } from "../../storage/settings";
-import { labelFor, listAudioInputs, onDeviceChange, type AudioInput } from "../../audio/devices";
+import { labelFor, listAudioInputs, onDeviceChange, pickDevice, type AudioInput } from "../../audio/devices";
 
 const PLANS: { v: BandPlan; label: string; note: string }[] = [
   { v: 31, label: "31밴드", note: "1/3 옥타브 · 가장 흔한 구성" },
@@ -69,10 +69,25 @@ export function SettingsScreen({
       )}
 
       <div className="text-[10px] uppercase tracking-wider text-neutral-400">입력 기기</div>
+      {/*
+        저장해 둔 기기가 지금 목록에 없다 — 뽑혔거나 다른 폰이다.
+        말없이 넘어가면 외부 마이크로 재고 있다고 믿은 채 다른 숫자를 보게 된다.
+        목록이 하나로 줄어드는 흔한 경우에도 떠야 하므로 아래 분기와 독립적으로 둔다.
+      */}
+      {settings.deviceId && pickDevice(inputs, settings.deviceId) === null && (
+        <p className="mt-1.5 rounded-lg bg-red-50 p-3 text-[11px] leading-relaxed text-red-800">
+          이전에 고른 마이크를 지금은 찾을 수 없습니다.
+          {settings.deviceLabel && <><br />고른 기기: {settings.deviceLabel}</>}
+          <br />연결을 확인하거나 아래에서 다시 고르십시오.
+        </p>
+      )}
       {inputs.length <= 1 ? (
+        // 「브라우저가 목록을 못 준다」와 「지금 기기가 하나뿐이다」는 다른 얘기다.
+        // 외부 마이크를 뽑으면 멀쩡한 안드로이드에서도 목록이 하나로 줄어든다 —
+        // 그때 「이 브라우저는 못 고른다」고 하면 담당자가 폰을 탓하게 된다.
         <p className="mt-1.5 rounded-lg bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
-          이 브라우저는 입력 기기를 골라줄 수 없습니다. 외부 마이크를 연결하면 자동으로 그쪽으로 넘어갑니다.
-          (아이폰 사파리가 이렇습니다)
+          지금 고를 수 있는 입력 기기가 하나뿐입니다. 외부 마이크를 연결하면 목록에 나타납니다.
+          (아이폰 사파리는 목록을 주지 않습니다 — 연결하면 자동으로 그쪽으로 넘어갑니다)
         </p>
       ) : (
         <div className="mt-1.5 space-y-1.5">

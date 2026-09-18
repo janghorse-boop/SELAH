@@ -52,7 +52,9 @@ describe("기기 고르기", () => {
 describe("마이크 제약 — 기기 지정", () => {
   it("기기를 안 고르면 deviceId 를 넣지 않는다", () => {
     const a = micConstraints(null).audio as MediaTrackConstraints;
-    expect(a.deviceId).toBeUndefined();
+    // toBeUndefined() 는 「키가 없음」과 「키가 undefined」를 구분하지 못한다.
+    // 브라우저에겐 다르다 — 후자는 제약 위반으로 읽혀 기본 마이크 열기가 조용히 실패할 수 있다.
+    expect("deviceId" in a).toBe(false);
     expect(a.autoGainControl).toBe(false);
   });
 

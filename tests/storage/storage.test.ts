@@ -74,6 +74,7 @@ describe("설정", () => {
     expect(got.showParametric).toBe(DEFAULT_SETTINGS.showParametric);
     expect(got.sensitivity).toBe(DEFAULT_SETTINGS.sensitivity);
     expect(got.deviceId).toBe(DEFAULT_SETTINGS.deviceId);
+    expect(got.deviceLabel).toBe(DEFAULT_SETTINGS.deviceLabel);
   });
 
   it("localStorage 를 쓸 수 없어도 던지지 않는다", () => {

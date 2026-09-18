@@ -190,6 +190,8 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
         deviceLabel: h.device.deviceLabel || null,
       }));
 
+      // 규격상 { exact } 는 그 기기를 열거나 실패한다 — 다른 기기가 조용히 열리지 않는다.
+      // 규격을 안 지키는 브라우저 대비로 남겨 둔 가지다.
       if (settings.deviceId && h.device.deviceId !== settings.deviceId) {
         setState((p) => ({
           ...p,
