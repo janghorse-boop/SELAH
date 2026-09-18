@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { startCapture, type CaptureHandle } from "../../audio/capture";
 import { spectrumToBands, bandCenters } from "../../analysis/bands";
 import { HowlDetector } from "../../analysis/howl";
@@ -43,6 +43,13 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
   });
 
   const handleRef = useRef<CaptureHandle | null>(null);
+  /**
+   * 마이크가 「열리는 중」인지. handleRef 는 await 가 끝나야 채워지므로
+   * 그것만으로는 두 번 누르는 것을 못 막는다 — 권한 창이 떠 있는 몇 초 동안
+   * 두 호출이 모두 통과해 마이크가 둘 열리고, 하나는 영영 버려진 채
+   * 초당 30번 계속 돈다. 화면은 「정지됨」인데 마이크는 살아 있다.
+   */
+  const startingRef = useRef(false);
   const detectorRef = useRef<HowlDetector | null>(null);
   const startedAtRef = useRef(0);
   const lastHowlAtRef = useRef(0);
@@ -53,8 +60,21 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
   const sumRef = useRef<number[]>([]);
   const countRef = useRef(0);
 
+  // 화면이 사라질 때 자원을 확실히 놓는다. 세션 저장은 하지 않는다 —
+  // 저장은 화면이 stop() 을 부를 때만 한다. 여기서는 마이크와 타이머만 끈다.
+  useEffect(() => () => {
+    handleRef.current?.stop();
+    handleRef.current = null;
+    startingRef.current = false;
+    if (adviceTimerRef.current) clearTimeout(adviceTimerRef.current);
+  }, []);
+
   const start = useCallback(async () => {
-    if (handleRef.current) return;
+    // await 앞에서 막아야 한다. 뒤에서 막으면 권한 창이 떠 있는 동안
+    // 두 번 눌린 호출이 둘 다 통과한다.
+    if (handleRef.current || startingRef.current) return;
+    startingRef.current = true;
+    setState((p) => ({ ...p, error: null }));
 
     const centers = bandCenters(settings.bandPlan);
     detectorRef.current = new HowlDetector(settings.sensitivity);
@@ -69,10 +89,16 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     try {
       const h = await startCapture({
         onFrame: (s) => {
-          const raw = spectrumToBands(s, settings.bandPlan);
-          const bands = settings.calibrationDb === null
-            ? raw
-            : raw.map((v) => v + settings.calibrationDb!);
+          // raw 는 방금 만들어진 것이라 제자리에서 고쳐도 안전하다.
+          // 초당 30번 도는 자리라 배열을 한 번 더 만들지 않는다.
+          const bands = spectrumToBands(s, settings.bandPlan);
+          if (settings.calibrationDb !== null) {
+            for (let i = 0; i < bands.length; i++) bands[i] += settings.calibrationDb;
+          }
+          // 보정값은 막대에만 더한다. 판정에는 원본 s 를 그대로 넘긴다 —
+          // 모든 대역에 같은 값을 더하면 어느 봉우리가 튀는지는 그대로지만
+          // 문턱 비교가 어긋나, 보정을 넣은 사람과 안 넣은 사람이
+          // 같은 예배당에서 다른 결과를 보게 된다.
 
           // 리허설 모드에서만 통계를 쌓는다
           if (mode === "rehearsal") {
@@ -102,13 +128,15 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
             }
           }
 
+          // howls·gaps 를 프레임마다 복사하지 않는다. 대부분의 프레임에서는
+          // 둘 다 안 바뀌는데, 매번 통째로 복사하면 예배가 길어질수록
+          // 초당 30번의 O(n) 복사가 되고 폰이 버벅인다.
+          // 바뀐 프레임에서만 새 배열을 만든다.
           setState((prev) => ({
             ...prev,
             bands,
             elapsedMs: Date.now() - startedAtRef.current,
-            howls: [...howlsRef.current],
-            gaps: [...gapsRef.current],
-            ...(advice ? { advice } : {}),
+            ...(advice ? { advice, howls: [...howlsRef.current] } : {}),
           }));
 
           if (advice) {
@@ -122,6 +150,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
         onError: (_kind, message) => {
           setState((p) => ({ ...p, error: message, running: false }));
           handleRef.current = null;
+          startingRef.current = false;
         },
         onInterrupt: (durationMs) => {
           gapsRef.current.push({
@@ -130,6 +159,8 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
           });
           // 끊긴 동안의 이력은 믿을 수 없다
           detectorRef.current?.reset();
+          // 끊긴 프레임에서만 gaps 를 화면으로 올린다
+          setState((p) => ({ ...p, gaps: [...gapsRef.current] }));
         },
       });
 
@@ -137,6 +168,9 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
       setState((p) => ({ ...p, running: true, error: null, warning: h.report.message }));
     } catch {
       /* onError 에서 이미 알렸다 */
+    } finally {
+      // 성공이든 실패든 「열리는 중」을 반드시 푼다. 안 풀면 다시 시작할 수 없다.
+      startingRef.current = false;
     }
   }, [settings, mode]);
 
