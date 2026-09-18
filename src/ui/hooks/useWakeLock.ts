@@ -34,7 +34,12 @@ export function useWakeLock(active: boolean) {
         setStatus("held");
         got.addEventListener("release", () => {
           lock = null;
-          if (!cancelled) setStatus("pending");
+          if (cancelled) return;
+          // 화면이 보이는 중에 풀렸다면(배터리 절약 등) 한 번 다시 시도한다.
+          // 실패하면 acquire 의 catch 가 unavailable 로 내린다 —
+          // pending 으로 두면 화면은 멀쩡해 보이는데 실제로는 꺼진다.
+          if (document.visibilityState === "visible") void acquire();
+          else setStatus("pending");
         });
       } catch {
         // 배터리 절약 모드 등. 「된다」고 말하면 안 된다.
