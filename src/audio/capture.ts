@@ -32,6 +32,20 @@ export function isInterrupt(elapsedMs: number): boolean {
   return elapsedMs > FRAME_MS * 3;
 }
 
+/** https 가 아니면 마이크를 열 수 없다. 던져진 오류가 아니라 사전 점검이라 따로 둔다. */
+export const INSECURE_ERROR: CaptureError = {
+  kind: "insecure",
+  message: "이 주소에서는 마이크를 열 수 없습니다. https:// 로 시작하는 주소로 접속하십시오.",
+};
+
+/**
+ * bin 하나가 몇 Hz 인가. 모든 주파수 계산이 여기서 나오므로
+ * 나누기를 뒤집으면 전 대역이 조용히 어긋난다.
+ */
+export function binHzFor(sampleRate: number, fftSize: number): number {
+  return sampleRate / fftSize;
+}
+
 export type CaptureErrorKind = "insecure" | "denied" | "nodevice" | "lost" | "unknown";
 
 export type CaptureCallbacks = {
@@ -49,9 +63,8 @@ export type CaptureHandle = {
 
 export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle> {
   if (!navigator.mediaDevices?.getUserMedia) {
-    const msg = "이 주소에서는 마이크를 열 수 없습니다. https:// 로 시작하는 주소로 접속하십시오.";
-    cb.onError("insecure", msg);
-    throw new Error(msg);
+    cb.onError(INSECURE_ERROR.kind, INSECURE_ERROR.message);
+    throw new Error(INSECURE_ERROR.message);
   }
 
   let stream: MediaStream;
@@ -63,19 +76,33 @@ export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle>
     throw e;
   }
 
-  const track = stream.getAudioTracks()[0];
-  const report = checkConstraints(track.getSettings());
+  // 여기서부터는 마이크가 이미 켜져 있다. 중간에 실패하면 반드시 꺼야 한다 —
+  // 안 끄면 호출한 쪽은 handle 조차 못 받으므로 멈출 방법이 없고,
+  // 폰의 녹음 표시가 켜진 채로 남는다.
+  let track: MediaStreamTrack;
+  let report: ConstraintReport;
+  let ctx: AudioContext;
+  let analyser: AnalyserNode;
+  try {
+    track = stream.getAudioTracks()[0];
+    report = checkConstraints(track.getSettings());
 
-  const ctx = new AudioContext();
-  const source = ctx.createMediaStreamSource(stream);
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = FFT_SIZE;
-  analyser.smoothingTimeConstant = 0; // 평활은 우리가 직접 한다
-  source.connect(analyser);
-  // analyser 를 destination 에 연결하지 않는다 — 소리를 되돌려보내면 그 자체가 하울링이다
+    ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0; // 평활은 우리가 직접 한다
+    source.connect(analyser);
+    // analyser 를 destination 에 연결하지 않는다 — 소리를 되돌려보내면 그 자체가 하울링이다
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop());
+    const { kind, message } = toCaptureError(e);
+    cb.onError(kind, message);
+    throw e;
+  }
 
   const buffer = new Float32Array(analyser.frequencyBinCount);
-  const binHz = ctx.sampleRate / FFT_SIZE;
+  const binHz = binHzFor(ctx.sampleRate, FFT_SIZE);
 
   let stopped = false;
   let lastFrameAt = performance.now();
@@ -89,11 +116,22 @@ export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle>
     if (isInterrupt(elapsed)) cb.onInterrupt(elapsed);
     lastFrameAt = now;
 
-    analyser.getFloatFrequencyData(buffer);
-    cb.onFrame({ db: buffer, binHz });
+    try {
+      analyser.getFloatFrequencyData(buffer);
+      cb.onFrame({ db: buffer, binHz });
+    } catch (e) {
+      // setInterval 은 예외가 나도 멈추지 않는다. 그냥 두면 같은 오류를
+      // 초당 30번 영원히 던지면서 화면에는 아무 말도 안 나온다.
+      cb.onError("unknown", "분석 중 문제가 생겨 측정을 멈췄습니다.");
+      stop();
+    }
   }, FRAME_MS);
 
   track.addEventListener("ended", () => {
+    // 우리가 부른 stop() 때문에 온 것이면 「연결이 끊겼다」가 아니다.
+    // 표준상 stop() 은 ended 를 쏘지 않게 되어 있지만, 표준을 안 지키는
+    // 브라우저에서도 안전하도록 막아 둔다.
+    if (stopped) return;
     cb.onError("lost", "마이크 연결이 끊겼습니다. 측정을 멈췄습니다.");
     stop();
   });

@@ -11,7 +11,7 @@ export default function App() {
     try {
       const h = await startCapture({
         onFrame: (s) => setBands(spectrumToBands(s, 31)),
-        onError: (_kind, m) => setMsg(m),
+        onError: (_kind, m) => { setMsg(m); setHandle(null); },
         onInterrupt: (ms) => setMsg(`측정이 ${Math.round(ms)}ms 끊겼습니다`),
       });
       setHandle(h);
