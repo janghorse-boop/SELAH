@@ -1,6 +1,5 @@
-import { WorshipScreen } from "./screens/WorshipScreen";
-import { DEFAULT_SETTINGS } from "../storage/settings";
+import { GuideScreen } from "./screens/GuideScreen";
 
 export default function App() {
-  return <WorshipScreen settings={DEFAULT_SETTINGS} onExit={() => {}} />;
+  return <GuideScreen onOpenRta={(r) => alert(`RTA 로 ${r[0]}~${r[1]}Hz`)} onExit={() => {}} />;
 }
