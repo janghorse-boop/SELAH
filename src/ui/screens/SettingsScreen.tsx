@@ -8,6 +8,14 @@ const PLANS: { v: BandPlan; label: string; note: string }[] = [
   { v: 10, label: "10밴드", note: "1 옥타브 · 하울링만 콕 집기 어렵습니다" },
 ];
 
+/**
+ * 보정값 허용 범위(dB). 폰의 dBFS 를 실제 SPL 로 옮기면 보통 +100 안팎이다.
+ * 범위를 안 두면 큰 값 하나로 **모든 막대가 동시에 천장(또는 바닥)에 붙어**
+ * 대역별 차이가 통째로 사라진다. 오류도 경고도 없이 화면만 쓸모없어진다.
+ */
+const CALIB_MIN = -200;
+const CALIB_MAX = 200;
+
 const SENS: { v: Sensitivity; label: string; note: string }[] = [
   { v: "low", label: "낮음", note: "오탐이 적습니다 (0.7초)" },
   { v: "normal", label: "보통", note: "기본 (0.5초)" },
@@ -26,6 +34,12 @@ export function SettingsScreen({
   const [calibText, setCalibText] = useState(
     settings.calibrationDb === null ? "" : String(settings.calibrationDb),
   );
+  // 매 렌더마다(= 입력 한 글자마다) 저장소를 실제로 건드리지 않는다.
+  const [storageOk] = useState(() => isStorageAvailable());
+
+  const typed = calibText.trim();
+  const calibInvalid =
+    typed !== "" && !(Number.isFinite(Number(typed)) && Number(typed) >= CALIB_MIN && Number(typed) <= CALIB_MAX);
 
   function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch };
@@ -40,7 +54,7 @@ export function SettingsScreen({
         <button className="text-sm text-neutral-500" onClick={onExit}>나가기</button>
       </div>
 
-      {!isStorageAvailable() && (
+      {!storageOk && (
         <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
           이 브라우저에서는 설정과 기록을 저장할 수 없습니다(시크릿 모드 등). 측정은 정상 동작합니다.
         </div>
@@ -81,7 +95,7 @@ export function SettingsScreen({
       <div className="mt-6 text-[10px] uppercase tracking-wider text-neutral-400">절대 dB 보정</div>
       <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-500">
         기본은 상대 레벨만 보여줍니다. 소음계와 비교한 차이(dB)를 넣으면 그만큼 더해 보여줍니다.
-        <b> 근사치입니다.</b> 비우면 상대 레벨로 돌아갑니다.
+        <b> 근사치입니다.</b> 비우면 상대 레벨로 돌아갑니다. ({CALIB_MIN} ~ {CALIB_MAX} 사이)
       </p>
       <input
         className="mt-2 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
@@ -90,10 +104,20 @@ export function SettingsScreen({
         value={calibText}
         onChange={(e) => {
           setCalibText(e.target.value);
-          const n = Number(e.target.value);
-          update({ calibrationDb: e.target.value.trim() === "" || Number.isNaN(n) ? null : n });
+          const raw = e.target.value.trim();
+          if (raw === "") { update({ calibrationDb: null }); return; }
+          const n = Number(raw);
+          // 범위 밖이면 저장하지 않는다. 화면에 왜 안 되는지도 함께 띄운다 —
+          // 조용히 무시하면 「입력했는데 왜 안 바뀌지」가 된다.
+          if (!Number.isFinite(n) || n < CALIB_MIN || n > CALIB_MAX) return;
+          update({ calibrationDb: n });
         }}
       />
+      {calibInvalid && (
+        <p className="mt-1 text-[11px] text-red-700">
+          {CALIB_MIN} ~ {CALIB_MAX} 사이의 숫자만 쓸 수 있습니다. 이 값은 저장되지 않았습니다.
+        </p>
+      )}
 
       <label className="mt-6 flex items-center gap-2.5">
         <input
