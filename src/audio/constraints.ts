@@ -24,6 +24,18 @@ const LABELS: Array<[keyof MediaTrackSettings, string]> = [
 ];
 
 /**
+ * 목록을 「A·B·C을/를」로 잇는다. 마지막 낱말의 받침에 따라 조사가 갈린다 —
+ * 「자동 음량 조절을」은 맞고 「자동 음량 조절를」은 틀린 한국어다.
+ */
+function listed(items: string[]): string {
+  const joined = items.join("·");
+  const last = joined.charCodeAt(joined.length - 1);
+  const isHangul = last >= 0xac00 && last <= 0xd7a3;
+  const hasBatchim = isHangul && (last - 0xac00) % 28 !== 0;
+  return joined + (hasBatchim ? "을" : "를");
+}
+
+/**
  * track.getSettings() 결과를 보고 실제로 꺼졌는지 판정한다.
  * 값이 undefined 면 「모른다」가 아니라 「켜져 있다」로 본다 —
  * 모르는 채로 정확한 척하는 것이 가장 나쁘다.
@@ -37,6 +49,6 @@ export function checkConstraints(settings: MediaTrackSettings): ConstraintReport
     message:
       notApplied.length === 0
         ? null
-        : `이 브라우저에서 ${notApplied.join("·")}를 끄지 못했습니다. 수치가 흔들릴 수 있습니다.`,
+        : `이 브라우저에서 ${listed(notApplied)} 끄지 못했습니다. 수치가 흔들릴 수 있습니다.`,
   };
 }

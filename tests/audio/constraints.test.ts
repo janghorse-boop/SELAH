@@ -7,6 +7,7 @@ describe("마이크 제약 정의", () => {
     expect(a.echoCancellation).toBe(false);
     expect(a.noiseSuppression).toBe(false);
     expect(a.autoGainControl).toBe(false);
+    expect(MIC_CONSTRAINTS.video).toBe(false);
   });
 });
 
@@ -30,7 +31,14 @@ describe("적용 여부 확인", () => {
     });
     expect(r.applied).toBe(false);
     expect(r.notApplied).toContain("자동 음량 조절");
+    // 문구가 「무엇이」 안 꺼졌는지를 실제로 담아야 한다.
+    // 항상 세 개를 다 나열하는 문구여도 아래 「수치가 흔들릴…」 검사만으로는 통과한다.
+    expect(r.message).toContain("자동 음량 조절");
+    expect(r.message).not.toContain("에코 제거");
+    expect(r.message).not.toContain("노이즈 억제");
     expect(r.message).toContain("수치가 흔들릴 수 있습니다");
+    // 받침이 있으므로 「조절을」이다. 「조절를」은 틀린 한국어다.
+    expect(r.message).toContain("자동 음량 조절을 끄지 못했습니다");
   });
 
   it("브라우저가 값을 알려주지 않아도(undefined) 켜진 것으로 본다", () => {
@@ -48,5 +56,8 @@ describe("적용 여부 확인", () => {
     expect(r.notApplied).toContain("에코 제거");
     expect(r.notApplied).toContain("노이즈 억제");
     expect(r.notApplied).not.toContain("자동 음량 조절");
+    // 마지막 항목이 「억제」(받침 없음)라 여기서는 「를」이 맞다.
+    expect(r.message).toContain("에코 제거·노이즈 억제를 끄지 못했습니다");
+    expect(r.message).not.toContain("자동 음량 조절");
   });
 });
