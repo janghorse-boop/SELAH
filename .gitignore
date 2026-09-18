@@ -1,0 +1,22 @@
+# 브레인스토밍 시안 (로컬 전용)
+.superpowers/
+
+# 의존성 / 빌드 산출물
+node_modules/
+dist/
+.vite/
+
+# 환경 변수
+.env
+.env.*
+!.env.example
+
+# 편집기 / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+npm-debug.log*
