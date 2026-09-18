@@ -82,3 +82,40 @@ export function barPct(db: number, floorDb: number, ceilDb: number): number {
   if (!Number.isFinite(db)) return 0;
   return Math.min(100, Math.max(0, ((db - floorDb) / (ceilDb - floorDb)) * 100));
 }
+
+/**
+ * 막대를 그릴 창의 높이(dB). 계량기가 읽히는 범위다 — 90dB 처럼 넓게 잡으면
+ * 실제 소리가 쓰는 폭이 아래쪽 3분의 1에 몰려 막대가 전부 바닥에 깔린다.
+ */
+export const METER_SPAN_DB = 55;
+
+/**
+ * 표시 천장이 내려갈 수 있는 하한. 보정을 쓰면 그만큼 함께 옮긴다.
+ *
+ * 이게 없으면 **조용한 방에서 잡음이 화면을 가득 채운다** — 아무 일도 없는데
+ * 뭔가 있는 것처럼 보이고, 그건 이 앱이 가장 하지 말아야 할 일이다.
+ */
+export const MIN_CEIL_DB = -48;
+
+/** 한 프레임에 천장이 내려올 수 있는 최대치(dB). 30fps 에서 초당 약 4.5dB. */
+const CEIL_FALL_DB = 0.15;
+
+/**
+ * 막대를 그릴 dB 창의 **천장**을 정한다.
+ *
+ * 고정 창을 쓰면 안 된다. 폰마다 마이크 감도가 20dB 넘게 차이 나고, FFT 를
+ * 16384점으로 잡으면 에너지가 8192개 칸에 흩어져 칸 하나하나는 아주 낮은
+ * 값이 된다. 그래서 같은 예배당에서도 어떤 폰은 막대가 늘 바닥에 깔리고
+ * 어떤 폰은 늘 천장에 붙는다. 방금 들어온 소리에 맞춰 천장을 따라 올린다.
+ *
+ * **올라갈 때는 곧바로, 내려올 때는 천천히** — 계량기는 늘 그렇게 움직인다.
+ * 그러지 않으면 소리가 멎을 때마다 막대 전체가 출렁여서 읽을 수 없다.
+ */
+export function nextCeilDb(bands: number[], prevCeilDb: number, minCeilDb: number): number {
+  let peak = -Infinity;
+  for (const b of bands) if (Number.isFinite(b) && b > peak) peak = b;
+  // 여유 3dB. 가장 큰 막대가 천장에 딱 붙어 잘린 것처럼 보이지 않게 한다.
+  const target = peak + 3;
+  const next = Number.isFinite(target) && target > prevCeilDb ? target : prevCeilDb - CEIL_FALL_DB;
+  return Math.max(next, minCeilDb);
+}

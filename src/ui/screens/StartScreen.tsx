@@ -37,7 +37,7 @@ function FirstRunNotice({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function StartScreen({ go }: { go: (r: "rehearsal" | "worship" | "guide" | "settings" | "history" | "about") => void }) {
+export function StartScreen({ go }: { go: (r: "rehearsal" | "worship" | "guide" | "settings" | "about") => void }) {
   const [showIntro, setShowIntro] = useState(() => !readSeen());
 
   function closeIntro() {
@@ -68,9 +68,8 @@ export function StartScreen({ go }: { go: (r: "rehearsal" | "worship" | "guide" 
         <button className="w-full rounded-xl bg-neutral-800 py-3 text-sm font-semibold text-white" onClick={() => go("worship")}>
           예배 모드 시작
         </button>
-        <div className="grid grid-cols-3 gap-2 pt-1">
+        <div className="grid grid-cols-2 gap-2 pt-1">
           <button className="rounded-lg bg-neutral-100 py-2.5 text-xs" onClick={() => go("guide")}>가이드</button>
-          <button className="rounded-lg bg-neutral-100 py-2.5 text-xs" onClick={() => go("history")}>기록</button>
           <button className="rounded-lg bg-neutral-100 py-2.5 text-xs" onClick={() => go("settings")}>설정</button>
         </div>
       </div>

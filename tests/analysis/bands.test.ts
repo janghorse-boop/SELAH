@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { bandCenters, bandEdges, spectrumToBands, nearestBand, formatHz, barPct } from "../../src/analysis/bands";
+import {
+  bandCenters, bandEdges, spectrumToBands, nearestBand, formatHz, barPct,
+  nextCeilDb, METER_SPAN_DB, MIN_CEIL_DB,
+} from "../../src/analysis/bands";
 import { tonePeak, pinkNoise } from "../helpers/signals";
 
 describe("밴드 정의", () => {
@@ -140,5 +143,68 @@ describe("막대 높이", () => {
     expect(barPct(NaN, -100, -10)).toBe(0);
     expect(barPct(0, -100, -10)).toBe(100);
     expect(barPct(-200, -100, -10)).toBe(0);
+  });
+});
+
+describe("따라 움직이는 표시 창", () => {
+  /** 한 프레임을 n번 돌린다. */
+  const settle = (bands: number[], from: number, n: number, min = MIN_CEIL_DB) => {
+    let c = from;
+    for (let i = 0; i < n; i++) c = nextCeilDb(bands, c, min);
+    return c;
+  };
+
+  it("큰 소리가 들어오면 곧바로 따라 올라간다", () => {
+    // 한 프레임이면 충분해야 한다. 천천히 올라가면 하울링이 시작된 순간
+    // 막대가 천장을 뚫고 나가 어느 대역인지 못 읽는다.
+    const ceil = nextCeilDb([-30, -70, -70], MIN_CEIL_DB, MIN_CEIL_DB);
+    expect(ceil).toBeCloseTo(-27, 5);
+  });
+
+  it("조용해지면 천천히 내려온다 — 한 프레임에 확 내려가지 않는다", () => {
+    const after1 = nextCeilDb([-90, -90], -20, -200);
+    expect(after1).toBeGreaterThan(-21); // 프레임당 0.15dB
+    // 30fps 로 2초면 약 9dB 내려온다
+    expect(settle([-90, -90], -20, 60, -200)).toBeCloseTo(-29, 0);
+  });
+
+  it("아무리 조용해도 하한 밑으로는 내려가지 않는다", () => {
+    // 이게 없으면 **조용한 방의 잡음이 화면을 가득 채운다.**
+    const ceil = settle([-120, -120, -120], MIN_CEIL_DB, 10000);
+    expect(ceil).toBe(MIN_CEIL_DB);
+    // 그 상태에서 조용한 방(-95dB)은 바닥 근처에 머문다
+    expect(barPct(-95, ceil - METER_SPAN_DB, ceil)).toBeLessThan(15);
+  });
+
+  it("보정을 쓰면 하한도 그만큼 함께 올라간다", () => {
+    // 보정 +100 이면 막대 값이 통째로 100 올라간다. 하한을 안 올리면
+    // 하한이 무의미해져 조용한 방에서도 창이 끝까지 따라 내려간다.
+    const min = MIN_CEIL_DB + 100;
+    expect(settle([-20, -20], min, 10000, min)).toBe(min);
+  });
+
+  it("값이 하나도 없는 프레임에서도 무너지지 않는다", () => {
+    // 첫 프레임 전에는 전부 -Infinity 다. NaN 이 새면 막대가 통째로 사라진다.
+    const ceil = nextCeilDb([-Infinity, -Infinity], -30, -200);
+    expect(Number.isFinite(ceil)).toBe(true);
+    expect(ceil).toBeCloseTo(-30.15, 5);
+    expect(nextCeilDb([], -30, -200)).toBeCloseTo(-30.15, 5);
+  });
+
+  it("실제 예배당 레벨이 막대의 상당 부분을 쓴다", () => {
+    // 고치기 전의 고정 창(-100~-10)에서는 이 값들이 전부 아래쪽
+    // 3분의 1에 깔려 「레벨이 너무 낮다」는 말이 나왔다.
+    const room = [-78, -72, -68, -64, -61, -59, -58, -62, -70, -80];
+    // 이 방의 가장 큰 대역(-58)이 하한(-48)보다 조용해서 창은 하한에 머문다.
+    // 천천히 내려오므로 몇 프레임으로는 자리를 잡지 않는다 — 30fps 기준
+    // 2초쯤 걸린다. 그 사이의 출렁임이 없는 것이 이 느린 하강의 목적이다.
+    const ceil = settle(room, MIN_CEIL_DB, 300);
+    expect(ceil).toBe(MIN_CEIL_DB);
+
+    const heights = room.map((v) => barPct(v, ceil - METER_SPAN_DB, ceil));
+    // 고치기 전 고정 창(-100~-10)에서는 가장 큰 막대가 47%, 가장 작은 것이
+    // 22% 였다 — 전부 아래쪽에 깔려 「레벨이 너무 낮다」는 말이 나왔다.
+    expect(Math.max(...heights)).toBeGreaterThan(75);
+    expect(Math.min(...heights)).toBeGreaterThan(30);
   });
 });
