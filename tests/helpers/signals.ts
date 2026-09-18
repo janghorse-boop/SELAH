@@ -72,9 +72,12 @@ export function cloneSpectrum(s: Spectrum): Spectrum {
  */
 export function jaggedFloor(refDbAt1kHz: number, seed = 1): Spectrum {
   let state = seed >>> 0;
+  // (0, 1) 열린 구간. 0 이 나오면 아래 -log(1-u) 가 0 이 되어 그 칸이
+  // -Infinity 로 떨어진다(seed 5499 에서 실제로 나온다). 지금은 무해하지만
+  // 다른 시험이 이 헬퍼를 가져다 쓰면 한 칸만 조용히 비는 함정이 된다.
   const rnd = () => {
     state = (1664525 * state + 1013904223) >>> 0;
-    return (state >>> 8) / 16777216;
+    return ((state >>> 8) + 0.5) / 16777216;
   };
   const db = new Float32Array(BIN_COUNT);
   for (let i = 0; i < BIN_COUNT; i++) {

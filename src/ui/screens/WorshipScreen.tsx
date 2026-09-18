@@ -18,6 +18,9 @@ export function WorshipScreen({
   const a = useAnalyzer(settings, "worship");
   const wake = useWakeLock(a.running);
   const [pressing, setPressing] = useState(false);
+  // 저장에 실패하면 그냥 나가지 않는다. 예배 한 번치 기록이 조용히 사라지고
+  // 담당자는 기록 화면에서 없어진 것을 나중에야 알게 된다.
+  const [saveFailed, setSaveFailed] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -46,7 +49,13 @@ export function WorshipScreen({
     setPressing(true);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
-      a.stop();
+      const r = a.stop();
+      if (r && !r.saved) {
+        // 마이크는 이미 멈췄다. 나가기 전에 실패를 알린다 —
+        // 화면이 바뀐 뒤에 말하면 볼 곳이 없다.
+        setSaveFailed(true);
+        return;
+      }
       onExit();
     }, LONG_PRESS_MS);
   }
@@ -60,6 +69,30 @@ export function WorshipScreen({
   }
 
   const minutes = Math.floor(a.elapsedMs / 60000);
+
+  if (saveFailed) {
+    // 길게 누르는 손동작이 이 화면에 닿지 않도록 통째로 바꿔 그린다.
+    // 같은 컨테이너 안에 얹으면 확인을 누르는 동작이 다시 「길게 누름」이 된다.
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-black px-6 text-center text-white">
+        <div className="text-2xl" aria-hidden="true">⚠</div>
+        <p className="mt-3 text-sm leading-relaxed text-red-300">
+          감시는 멈췄지만 <strong className="font-semibold">이 예배의 기록을 저장하지 못했습니다.</strong>
+          <br />폰 저장 공간이 가득 찼거나 브라우저가 저장을 막고 있습니다.
+        </p>
+        <p className="mt-3 text-[11px] leading-relaxed text-neutral-400">
+          잃어버린 내용: {minutes}분 감시 · 하울링 {a.howls.length}회
+          {a.gaps.length > 0 && ` · 끊김 ${a.gaps.length}회`}
+        </p>
+        <button
+          className="mt-6 rounded-lg border border-neutral-700 px-6 py-3 text-sm text-neutral-300"
+          onClick={onExit}
+        >
+          확인
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

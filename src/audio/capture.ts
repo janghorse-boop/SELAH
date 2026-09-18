@@ -112,7 +112,9 @@ export async function startCapture(
   } catch (e) {
     stream.getTracks().forEach((t) => t.stop());
     // ctx 가 만들어진 뒤(analyser·connect 등)에 던졌다면 컨텍스트가 열린 채 남는다.
-    void ctx?.close();
+    // close() 는 거부될 수 있다. 안 받으면 처리되지 않은 거부로 콘솔에 남아
+    // 바로 아래에서 알리는 진짜 오류를 가린다.
+    ctx?.close().catch(() => {});
     const { kind, message } = toCaptureError(e);
     cb.onError(kind, message);
     throw e;
@@ -163,7 +165,7 @@ export async function startCapture(
     clearInterval(timer);
     track.stop();
     stream.getTracks().forEach((t) => t.stop());
-    void audioCtx.close();
+    audioCtx.close().catch(() => {});
   }
 
   const openedSettings = track.getSettings();

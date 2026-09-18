@@ -34,7 +34,11 @@ export function BandMeter({
     <div>
       <div className={`flex items-end gap-px ${height}`}>
         {centers.map((hz, i) => {
-          const pct = barPct(bands[i] ?? FLOOR_DB, floor, ceil);
+          // 값이 아직 없으면 FLOOR_DB 가 아니라 -Infinity 를 넣는다.
+          // FLOOR_DB(-100)는 보정을 안 쓸 때만 바닥이다 — 보정이 -60 이면
+          // 창이 -160~-70 이라 「자료 없음」이 막대 3분의 2 높이로 그려진다.
+          // 첫 프레임이 오기 전에는 31개가 전부 이 길을 지난다.
+          const pct = barPct(bands[i] ?? -Infinity, floor, ceil);
           const color = isHot(hz)
             ? "bg-red-500"
             : inRange(hz)

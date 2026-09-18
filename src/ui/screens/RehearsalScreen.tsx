@@ -100,7 +100,10 @@ export function RehearsalScreen({
       <button
         className="mt-4 w-full rounded-lg bg-neutral-800 py-3 font-semibold text-white disabled:opacity-40"
         onClick={finish}
-        disabled={!a.running && a.howls.length === 0 && a.gaps.length === 0}
+        // 「지금 재고 있는가」가 아니라 「저장할 기록이 있는가」로 막는다.
+        // 오류로 마이크가 죽어도 누를 수 있어야 하고, 저장한 뒤에는 막혀야
+        // 두 번째 누름이 방금 뜬 안내를 지우지 않는다.
+        disabled={!a.started}
       >
         측정 끝내고 저장
       </button>

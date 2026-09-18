@@ -20,6 +20,15 @@ const ADVICE_HOLD_MS = 4000;
 
 export type AnalyzerState = {
   running: boolean;
+  /**
+   * 측정이 시작돼 **저장할 기록이 있는가**. `running` 과 다르다 —
+   * 오류로 마이크가 죽어도 그때까지 잰 값은 남아 있어야 한다.
+   *
+   * 하울링·끊김 개수로 이걸 판단하면 안 된다. **하나도 없는 조용한 리허설이야말로
+   * 좋은 리허설**인데, 그때 밴드 최대·평균(리허설 모드의 결과물 전체)이
+   * 통째로 사라진다. 저장이 끝나면 다시 false 가 되어 두 번 눌리지 않는다.
+   */
+  started: boolean;
   bands: number[];
   advice: CutAdvice | null;
   /** 제약 미적용 등 상시 경고 */
@@ -35,6 +44,7 @@ export type AnalyzerState = {
 export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
   const [state, setState] = useState<AnalyzerState>({
     running: false,
+    started: false,
     bands: [],
     advice: null,
     warning: null,
@@ -197,6 +207,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
       setState((p) => ({
         ...p,
         running: true,
+        started: true,
         error: null,
         // 둘 다 뜰 수 있다. 하나가 다른 하나를 덮으면 「숫자를 믿지 말라」는
         // 경고가 조용히 사라진다.
@@ -238,7 +249,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     };
 
     const saved = saveSession(session);
-    setState((p) => ({ ...p, running: false, advice: null }));
+    setState((p) => ({ ...p, running: false, started: false, advice: null }));
     return { session, saved };
   }, [mode, settings]);
 

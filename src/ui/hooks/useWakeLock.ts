@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 export type WakeLockStatus = "pending" | "held" | "unavailable";
 
 /**
+ * 화면이 보이는 중에 잠금이 풀렸을 때 연달아 다시 잡아 볼 횟수.
+ * 세 번 잡자마자 회수당했다면 그 폰에서는 안 되는 것이다.
+ */
+const RELEASE_RETRY_LIMIT = 3;
+
+/**
  * 감시 중에는 폰이 저절로 잠기지 않게 잡아 둔다.
  *
  * **「기능이 있다」와 「실제로 걸렸다」를 구분한다.** 배터리 절약 모드에서는
@@ -23,23 +29,38 @@ export function useWakeLock(active: boolean) {
 
     let lock: WakeLockSentinel | null = null;
     let cancelled = false;
+    // 화면이 보이는 중에 풀렸을 때 **연달아** 다시 잡아 본 횟수.
+    // 배터리 절약 모드는 「허락했다가 곧바로 회수」를 되풀이할 수 있다.
+    // 한계가 없으면 잡기→풀림이 쉬지 않고 도는데 상태는 held 로 남아,
+    // 정작 「화면이 꺼질 수 있다」는 경고가 끝내 뜨지 않는다.
+    let retries = 0;
     setStatus("pending");
 
     const acquire = async () => {
       if (cancelled || lock) return; // 이미 잡고 있으면 다시 요청하지 않는다
       try {
         const got = await navigator.wakeLock.request("screen");
-        if (cancelled) { void got.release(); return; }
+        if (cancelled) { got.release().catch(() => {}); return; }
         lock = got;
         setStatus("held");
         got.addEventListener("release", () => {
           lock = null;
           if (cancelled) return;
-          // 화면이 보이는 중에 풀렸다면(배터리 절약 등) 한 번 다시 시도한다.
-          // 실패하면 acquire 의 catch 가 unavailable 로 내린다 —
-          // pending 으로 두면 화면은 멀쩡해 보이는데 실제로는 꺼진다.
-          if (document.visibilityState === "visible") void acquire();
-          else setStatus("pending");
+          if (document.visibilityState !== "visible") {
+            // 화면을 벗어난 것뿐이다. 돌아오면 onVisible 이 다시 잡는다.
+            setStatus("pending");
+            return;
+          }
+          // 보이는 중에 풀렸다. 배터리 절약 등이 회수한 것이므로 몇 번은
+          // 다시 잡아 본다. pending 으로 두면 화면은 멀쩡해 보이는데
+          // 실제로는 꺼진다. 다만 되풀이가 멈추지 않으면 그 폰에서는
+          // 잠글 수 없다는 뜻이니, 조용히 계속 매달리지 말고 사실대로 알린다.
+          if (retries >= RELEASE_RETRY_LIMIT) {
+            setStatus("unavailable");
+            return;
+          }
+          retries++;
+          void acquire();
         });
       } catch {
         // 배터리 절약 모드 등. 「된다」고 말하면 안 된다.
@@ -48,7 +69,11 @@ export function useWakeLock(active: boolean) {
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") void acquire();
+      if (document.visibilityState !== "visible") return;
+      // 화면으로 돌아왔다 — 아까 실패했더라도 사정이 달라졌을 수 있으니
+      // 재시도 예산을 새로 준다.
+      retries = 0;
+      void acquire();
     };
 
     void acquire();
@@ -57,7 +82,7 @@ export function useWakeLock(active: boolean) {
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      void lock?.release();
+      lock?.release().catch(() => {});
       lock = null;
     };
   }, [active]);
