@@ -1,0 +1,105 @@
+import type { PeakInfo, Spectrum } from "./types";
+
+/** 이웃 판정에 쓰는 폭: 중심의 ±1/6 옥타브. */
+const NEIGHBOR_OCT = 1 / 6;
+/** 봉우리 자신으로 보고 이웃에서 빼는 범위(bin). */
+const SELF_BINS = 3;
+
+function median(values: number[]): number {
+  if (values.length === 0) return -Infinity;
+  const v = [...values].sort((a, b) => a - b);
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+/** 이웃(±1/6 옥타브, 자기 자신 제외) 중앙값 대비 솟은 정도. */
+export function computePnpr(s: Spectrum, bin: number): number {
+  const hz = bin * s.binHz;
+  const lo = Math.max(1, Math.floor((hz * 2 ** -NEIGHBOR_OCT) / s.binHz));
+  const hi = Math.min(s.db.length - 1, Math.ceil((hz * 2 ** NEIGHBOR_OCT) / s.binHz));
+  const neighbors: number[] = [];
+  for (let i = lo; i <= hi; i++) {
+    if (Math.abs(i - bin) <= SELF_BINS) continue;
+    neighbors.push(s.db[i]);
+  }
+  return s.db[bin] - median(neighbors);
+}
+
+/** 스펙트럼 전체의 평균 전력 대비. dB 평균이 아니라 전력 평균이다. */
+export function computePapr(s: Spectrum, bin: number): number {
+  let power = 0;
+  for (let i = 1; i < s.db.length; i++) power += 10 ** (s.db[i] / 10);
+  const meanDb = 10 * Math.log10(power / (s.db.length - 1));
+  return s.db[bin] - meanDb;
+}
+
+/** 지정한 bin 근처(±2)의 최대 레벨. 배음은 정확히 떨어지지 않는다. */
+function levelNear(s: Spectrum, bin: number): number {
+  const lo = Math.max(1, Math.round(bin) - 2);
+  const hi = Math.min(s.db.length - 1, Math.round(bin) + 2);
+  if (hi < lo) return -Infinity;
+  let best = -Infinity;
+  for (let i = lo; i <= hi; i++) if (s.db[i] > best) best = s.db[i];
+  return best;
+}
+
+/** 여러 지점 중 가장 큰 것 대비 몇 dB 위인가. 지점이 모두 범위 밖이면 Infinity. */
+function ratioAgainst(s: Spectrum, bin: number, targets: number[]): number {
+  let worst = -Infinity;
+  for (const t of targets) {
+    if (t < 1 || t >= s.db.length) continue;
+    const v = levelNear(s, t);
+    if (v > worst) worst = v;
+  }
+  if (worst === -Infinity) return Infinity;
+  return s.db[bin] - worst;
+}
+
+/**
+ * 위쪽 배음(2f·3f) 대비. 값이 클수록 배음이 없다 = 하울링답다.
+ * 배음 지점이 나이퀴스트를 넘으면 배음이 없는 것으로 본다.
+ */
+export function computePhpr(s: Spectrum, bin: number): number {
+  return ratioAgainst(s, bin, [bin * 2, bin * 3]);
+}
+
+/**
+ * 아래쪽(f/2·f/3) 대비. 값이 작으면 이 봉우리가 **남의 배음**이라는 뜻이다.
+ * 이것이 없으면 220Hz 목소리의 440Hz 배음 자체가 하울링으로 통과한다 —
+ * 440Hz 자신의 위쪽(880·1320)은 비어 있기 때문이다.
+ */
+export function computeShpr(s: Spectrum, bin: number): number {
+  return ratioAgainst(s, bin, [bin / 2, bin / 3]);
+}
+
+/**
+ * 국소 최대를 찾아 레벨 내림차순으로 돌려준다.
+ * minDb 아래는 버린다 — 바닥의 잡음을 봉우리로 세지 않기 위해서다.
+ */
+export function findPeaks(
+  s: Spectrum,
+  opts: { minDb?: number; maxPeaks?: number } = {},
+): PeakInfo[] {
+  const minDb = opts.minDb ?? -80;
+  const maxPeaks = opts.maxPeaks ?? 8;
+  const found: PeakInfo[] = [];
+
+  for (let i = 2; i < s.db.length - 2; i++) {
+    const v = s.db[i];
+    if (v < minDb) continue;
+    if (!(v > s.db[i - 1] && v >= s.db[i + 1])) continue;
+    if (!(v > s.db[i - 2] && v >= s.db[i + 2])) continue;
+    found.push({
+      bin: i,
+      hz: i * s.binHz,
+      db: v,
+      pnpr: computePnpr(s, i),
+      papr: computePapr(s, i),
+      phpr: computePhpr(s, i),
+      shpr: computeShpr(s, i),
+    });
+  }
+
+  found.sort((a, b) => b.db - a.db);
+  return found.slice(0, maxPeaks);
+}
