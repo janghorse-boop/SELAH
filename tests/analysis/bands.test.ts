@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bandCenters, bandEdges, spectrumToBands, nearestBand } from "../../src/analysis/bands";
+import { bandCenters, bandEdges, spectrumToBands, nearestBand, formatHz } from "../../src/analysis/bands";
 import { tonePeak, pinkNoise } from "../helpers/signals";
 
 describe("밴드 정의", () => {
@@ -105,6 +105,14 @@ describe("스펙트럼을 밴드로 묶기", () => {
     // 15밴드 반폭 상수가 틀리면 여기서 어긋난다.
     // 평탄도 검사로는 못 잡는다 — 폭이 틀려도 비율만 일정하면 여전히 평탄하다.
     expect(at15 - at31).toBeCloseTo(3.01, 0);
+  });
+
+  it("주파수 표기는 1000 이상에서만 k 로 줄인다", () => {
+    expect(formatHz(3150)).toBe("3.15k");
+    expect(formatHz(1000)).toBe("1k");
+    expect(formatHz(16000)).toBe("16k");
+    expect(formatHz(630)).toBe("630");
+    expect(formatHz(31.5)).toBe("31.5");
   });
 
   it("bin 간격이 넓어 밴드에 bin 이 하나도 안 들어가도 값을 낸다", () => {

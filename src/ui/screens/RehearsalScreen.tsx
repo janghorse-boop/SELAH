@@ -3,6 +3,7 @@ import { useAnalyzer } from "../hooks/useAnalyzer";
 import { BandMeter } from "../components/BandMeter";
 import { HowlCard } from "../components/HowlCard";
 import { WarningBadge } from "../components/WarningBadge";
+import { toCutAdvice } from "../../analysis/advice";
 import type { Settings } from "../../storage/settings";
 
 export function RehearsalScreen({
@@ -17,11 +18,19 @@ export function RehearsalScreen({
   const a = useAnalyzer(settings, "rehearsal");
   const [ended, setEnded] = useState(false);
 
+  // 슬롯 높이를 숫자로 찍어 맞추지 않는다. min-h 는 최소값이라
+  // 경고 문구(31밴드가 아니면 하울링마다 붙는다)나 파라메트릭 줄이 생기면
+  // 카드가 그보다 커져 막대가 밀린다 — 경고를 읽어야 할 바로 그 순간에.
+  // 실제 함수로 만든 카드를 보이지 않게 깔아 자리를 잡으면
+  // 설정이 무엇이든 높이가 정확히 같다.
+  const sizer = toCutAdvice({ hz: 1000, db: -20, prominence: 18 }, settings.bandPlan);
+
   useEffect(() => {
     void a.start();
-    return () => {
-      a.stop();
-    };
+    // 여기서 a.stop() 을 부르지 않는다. stop() 은 **세션을 저장한다** —
+    // 화면을 나가는 것만으로 기록이 남으면 「측정 끝내고 저장」 버튼의 뜻이 사라지고,
+    // 나중에 기록 화면이 저장한 적 없는 세션으로 채워진다.
+    // 마이크는 useAnalyzer 자신의 정리 효과가 끈다.
     // 화면에 들어올 때 한 번만 시작한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -47,12 +56,17 @@ export function RehearsalScreen({
         </div>
       )}
 
-      <div className="mb-3 min-h-[92px]">
+      <div className="mb-3">
         {a.advice ? (
           <HowlCard advice={a.advice} size="large" showParametric={settings.showParametric} />
         ) : (
-          <div className="flex h-[92px] items-center justify-center rounded-xl border border-dashed border-neutral-300 text-sm text-neutral-400">
-            하울링 없음 · 감시 중
+          <div className="relative">
+            <div aria-hidden className="invisible">
+              <HowlCard advice={sizer} size="large" showParametric={settings.showParametric} />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-neutral-300 text-sm text-neutral-400">
+              하울링 없음 · 감시 중
+            </div>
           </div>
         )}
       </div>

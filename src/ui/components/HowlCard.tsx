@@ -1,8 +1,5 @@
+import { formatHz } from "../../analysis/bands";
 import type { CutAdvice } from "../../analysis/types";
-
-function label(hz: number): string {
-  return hz >= 1000 ? `${hz / 1000}k` : `${hz}`;
-}
 
 export function HowlCard({
   advice,
@@ -17,10 +14,10 @@ export function HowlCard({
   return (
     <div className={`rounded-xl bg-red-600 text-white ${big ? "p-4" : "px-3 py-2"}`}>
       <div className={big ? "text-3xl font-extrabold" : "text-base font-bold"}>
-        {label(advice.bandHz)} Hz
+        {formatHz(advice.bandHz)} Hz
       </div>
       <div className={`mt-1 ${big ? "text-sm" : "text-xs"}`}>
-        <b>{label(advice.bandHz)} 슬라이더</b> → 약 <b>{advice.cutDb}dB</b> 내리기
+        <b>{formatHz(advice.bandHz)} 슬라이더</b> → 약 <b>{advice.cutDb}dB</b> 내리기
       </div>
       {showParametric && (
         <div className={`mt-1 opacity-90 ${big ? "text-xs" : "text-[10px]"}`}>

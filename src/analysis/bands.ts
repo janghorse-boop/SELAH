@@ -21,6 +21,11 @@ export function bandCenters(plan: BandPlan): number[] {
   return CENTERS[plan];
 }
 
+/** 화면에 쓰는 주파수 표기. 1000 이상은 k 로 줄인다 (3150 → "3.15k"). */
+export function formatHz(hz: number): string {
+  return hz >= 1000 ? `${hz / 1000}k` : `${hz}`;
+}
+
 export function bandEdges(plan: BandPlan, center: number): { lo: number; hi: number } {
   const h = HALF_WIDTH_OCT[plan];
   return { lo: center * 2 ** -h, hi: center * 2 ** h };

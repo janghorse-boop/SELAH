@@ -1,13 +1,9 @@
-import { bandCenters } from "../../analysis/bands";
+import { bandCenters, formatHz } from "../../analysis/bands";
 import type { BandPlan } from "../../analysis/types";
 
 /** 화면에 보여줄 하한/상한(dB). 이 범위 밖은 자른다. */
 const FLOOR_DB = -100;
 const CEIL_DB = -10;
-
-function labelFor(hz: number): string {
-  return hz >= 1000 ? `${hz / 1000}k` : `${hz}`;
-}
 
 export function BandMeter({
   bands,
@@ -33,7 +29,8 @@ export function BandMeter({
     <div>
       <div className={`flex items-end gap-px ${height}`}>
         {centers.map((hz, i) => {
-          const v = bands[i] ?? FLOOR_DB;
+          const raw = bands[i];
+          const v = Number.isFinite(raw) ? raw : FLOOR_DB;
           const pct = Math.min(100, Math.max(0, ((v - FLOOR_DB) / (CEIL_DB - FLOOR_DB)) * 100));
           const color = isHot(hz)
             ? "bg-red-500"
@@ -45,7 +42,7 @@ export function BandMeter({
               key={hz}
               className={`flex-1 rounded-t-sm ${color}`}
               style={{ height: `${pct}%` }}
-              title={`${labelFor(hz)}Hz`}
+              title={`${formatHz(hz)}Hz`}
             />
           );
         })}
@@ -54,7 +51,7 @@ export function BandMeter({
         <div className="mt-1 flex justify-between text-[9px] text-neutral-500">
           {[0, Math.floor(centers.length / 4), Math.floor(centers.length / 2), Math.floor((centers.length * 3) / 4), centers.length - 1].map(
             (i) => (
-              <span key={i}>{labelFor(centers[i])}</span>
+              <span key={i}>{formatHz(centers[i])}</span>
             ),
           )}
         </div>
