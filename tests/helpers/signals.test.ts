@@ -16,7 +16,10 @@ describe("합성 스펙트럼 생성기", () => {
       if (s.db[i] > s.db[maxBin]) maxBin = i;
     }
     expect(Math.abs(maxBin - targetBin)).toBeLessThanOrEqual(1);
-    expect(s.db[targetBin]).toBeCloseTo(-20, 1);
+    // 허용 오차 ±0.5dB. 1000Hz 는 bin 341.33 에 떨어지므로 정수 bin 에서 읽으면
+    // 봉우리 꼭대기보다 약 0.39dB 낮다 — 실제 스펙트럼도 같은 이유로 그렇다.
+    // 이 오차를 더 좁히면 통과할 수 없다. 조이지 말 것.
+    expect(s.db[targetBin]).toBeCloseTo(-20, 0);
   });
 
   it("pinkNoise 는 주파수가 두 배가 되면 3dB 내려간다", () => {
