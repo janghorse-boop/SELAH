@@ -5,8 +5,9 @@
 폰 브라우저로 열어 예배당 소리를 31밴드로 보고, **하울링이 시작되면 「어느 EQ 슬라이더를
 몇 dB 내릴지」** 알려줍니다.
 
-> 🚧 **현재 상태: 설계 완료, 구현 전.** 아직 동작하는 화면이 없습니다.
+> **열어보기: https://janghorse-boop.github.io/SELAH/**
 > 설계 문서 → [`docs/superpowers/specs/2026-09-18-selah-rta-design.md`](docs/superpowers/specs/2026-09-18-selah-rta-design.md)
+> 구현 계획 → [`docs/superpowers/plans/2026-09-18-selah-rta.md`](docs/superpowers/plans/2026-09-18-selah-rta.md)
 
 ---
 
