@@ -53,8 +53,11 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
    * 초당 30번 계속 돈다. 화면은 「정지됨」인데 마이크는 살아 있다.
    */
   const startingRef = useRef(false);
-  /** 이 훅이 아직 살아 있는가. await 뒤에서 「붙여도 되는지」를 판단하는 데 쓴다. */
-  const aliveRef = useRef(true);
+  /** 측정이 시작된 적이 있는가. 오류로 캡처가 죽은 뒤에도 기록은 살아 있다. */
+  const startedRef = useRef(false);
+  /** 시작 세대. await 뒤에 「내가 아직 그 세대인가」를 확인한다.
+   *  불리언은 다시 마운트되면 되살아나 두 마이크가 열릴 수 있다. */
+  const genRef = useRef(0);
   const detectorRef = useRef<HowlDetector | null>(null);
   const startedAtRef = useRef(0);
   const lastHowlAtRef = useRef(0);
@@ -68,9 +71,8 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
   // 화면이 사라질 때 자원을 확실히 놓는다. 세션 저장은 하지 않는다 —
   // 저장은 화면이 stop() 을 부를 때만 한다. 여기서는 마이크와 타이머만 끈다.
   useEffect(() => {
-    aliveRef.current = true;
     return () => {
-      aliveRef.current = false;
+      genRef.current++;
       handleRef.current?.stop();
       handleRef.current = null;
       startingRef.current = false;
@@ -84,6 +86,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     if (handleRef.current || startingRef.current) return;
     startingRef.current = true;
     setState((p) => ({ ...p, error: null }));
+    const gen = ++genRef.current;
 
     const centers = bandCenters(settings.bandPlan);
     detectorRef.current = new HowlDetector(settings.sensitivity);
@@ -173,31 +176,33 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
         },
       }, settings.deviceId);
 
-      if (!aliveRef.current) {
-        // 권한 창이 떠 있는 동안 화면이 사라졌다. 정리 코드는 그때 핸들이
-        // 없어서 아무것도 못 했고, 지금 붙이면 **아무도 멈출 수 없는 마이크**가 된다.
-        // 열리자마자 끈다.
+      if (gen !== genRef.current) {
+        // 기다리는 사이에 화면이 사라졌거나 다시 시작됐다.
+        // 지금 붙이면 아무도 멈출 수 없는 마이크가 된다.
         h.stop();
         return;
       }
 
+      const warnings: string[] = [];
+      if (h.report.message) warnings.push(h.report.message);
+      if (settings.deviceId && h.device.deviceId !== settings.deviceId) {
+        // 규격상 { exact } 는 그 기기를 열거나 실패한다 — 다른 기기가 조용히 열리지 않는다.
+        // 규격을 안 지키는 브라우저 대비로 남겨 둔 가지다.
+        warnings.push(
+          `고른 마이크(${settings.deviceLabel ?? "외부 기기"})를 쓸 수 없어 기본 마이크로 재고 있습니다.`,
+        );
+      }
       handleRef.current = h;
+      startedRef.current = true;
       setState((p) => ({
         ...p,
         running: true,
         error: null,
-        warning: h.report.message,
+        // 둘 다 뜰 수 있다. 하나가 다른 하나를 덮으면 「숫자를 믿지 말라」는
+        // 경고가 조용히 사라진다.
+        warning: warnings.length > 0 ? warnings.join(" ") : null,
         deviceLabel: h.device.deviceLabel || null,
       }));
-
-      // 규격상 { exact } 는 그 기기를 열거나 실패한다 — 다른 기기가 조용히 열리지 않는다.
-      // 규격을 안 지키는 브라우저 대비로 남겨 둔 가지다.
-      if (settings.deviceId && h.device.deviceId !== settings.deviceId) {
-        setState((p) => ({
-          ...p,
-          warning: `고른 마이크(${settings.deviceLabel ?? "외부 기기"})를 쓸 수 없어 기본 마이크로 재고 있습니다.`,
-        }));
-      }
     } catch {
       /* onError 에서 이미 알렸다 */
     } finally {
@@ -206,10 +211,12 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     }
   }, [settings, mode]);
 
-  const stop = useCallback((): Session | null => {
-    const h = handleRef.current;
-    if (!h) return null;
-    h.stop();
+  const stop = useCallback((): { session: Session; saved: boolean } | null => {
+    // handleRef 가 아니라 startedRef 를 본다. 오류로 캡처가 죽으면
+    // handleRef 는 null 이지만 그때까지 쌓인 기록은 버리면 안 된다.
+    if (!startedRef.current) return null;
+    startedRef.current = false;
+    handleRef.current?.stop();
     handleRef.current = null;
     if (adviceTimerRef.current) clearTimeout(adviceTimerRef.current);
 
@@ -230,9 +237,9 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
         : {}),
     };
 
-    saveSession(session);
+    const saved = saveSession(session);
     setState((p) => ({ ...p, running: false, advice: null }));
-    return session;
+    return { session, saved };
   }, [mode, settings]);
 
   return { ...state, start, stop };

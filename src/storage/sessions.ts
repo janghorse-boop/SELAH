@@ -40,13 +40,16 @@ export function loadSessions(): Session[] {
   }
 }
 
-/** 최신이 앞에 오도록 넣고, 상한을 넘으면 오래된 것부터 버린다. */
-export function saveSession(s: Session): void {
+/** 최신이 앞에 오도록 넣고, 상한을 넘으면 오래된 것부터 버린다. 저장에 성공했는지 돌려준다. */
+export function saveSession(s: Session): boolean {
   try {
     const next = [s, ...loadSessions()].slice(0, MAX_SESSIONS);
     localStorage.setItem(KEY, JSON.stringify(next));
+    return true;
   } catch {
-    // 용량 초과 등. 측정 자체는 끝난 뒤이므로 조용히 넘어가되 화면에서 알린다.
+    // 용량 초과·저장 차단. 조용히 성공한 척하면 안 된다 —
+    // 호출한 쪽이 화면에 사실대로 알린다.
+    return false;
   }
 }
 

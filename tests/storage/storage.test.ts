@@ -148,4 +148,10 @@ describe("세션 기록", () => {
     const ids = new Set(Array.from({ length: 100 }, () => newSessionId()));
     expect(ids.size).toBe(100);
   });
+
+  it("저장 성공 여부를 사실대로 돌려준다", () => {
+    expect(saveSession(makeSession(1))).toBe(true);
+    installThrowingLocalStorage();
+    expect(saveSession(makeSession(2))).toBe(false);
+  });
 });
