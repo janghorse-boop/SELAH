@@ -38,8 +38,14 @@ export function WorshipScreen({
   }, []);
 
   function down() {
+    // 이미 누르고 있는 중이면 새 타이머를 만들지 않는다.
+    // 덮어쓰면 앞 타이머의 id 를 잃어 취소할 수 없고, 손을 뗀 뒤에도
+    // 1.2초 뒤에 감시가 멈춘다. 폰이 주머니에 있으면 천과 살이
+    // 동시에 닿아 실제로 일어난다.
+    if (timerRef.current !== null) return;
     setPressing(true);
     timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
       a.stop();
       onExit();
     }, LONG_PRESS_MS);
@@ -47,7 +53,10 @@ export function WorshipScreen({
 
   function up() {
     setPressing(false);
-    if (timerRef.current) clearTimeout(timerRef.current);
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }
 
   const minutes = Math.floor(a.elapsedMs / 60000);
@@ -58,6 +67,10 @@ export function WorshipScreen({
       onPointerDown={down}
       onPointerUp={up}
       onPointerLeave={up}
+      // 브라우저가 제스처를 가져가면(가장자리 스와이프, 전화 수신 등)
+      // pointerup 이 오지 않는다. 이걸 안 받으면 누름 표시가 켜진 채 남고
+      // 예약된 정지가 그대로 실행된다.
+      onPointerCancel={up}
     >
       {a.error ? (
         <div className="m-auto text-center text-red-400">{a.error}</div>
@@ -69,7 +82,7 @@ export function WorshipScreen({
         <div className="mt-8 text-center">
           <div className="mx-auto h-14 w-14 rounded-full bg-green-700 shadow-[0_0_28px_#15803d]" />
           <div className="mt-3 text-lg font-semibold text-green-500">정상</div>
-          <div className="mt-1 text-xs text-neutral-600">{minutes}분 감시 중</div>
+          <div className="mt-1 text-xs text-neutral-500">{minutes}분 감시 중</div>
         </div>
       )}
 
@@ -78,9 +91,12 @@ export function WorshipScreen({
           ⚠ {a.warning}
         </div>
       )}
-      {!wake.supported && (
-        <div className="mt-2 text-center text-[11px] text-neutral-600">
-          이 브라우저는 화면 꺼짐 방지를 지원하지 않습니다. 화면이 꺼질 수 있습니다.
+      {wake.status === "unavailable" && (
+        // 「기능이 없다」와 「요청이 거부됐다」를 한 문구로 다룬다 —
+        // 사용자에게 중요한 것은 이유가 아니라 「화면이 꺼질 수 있다」는 사실이다.
+        // 경고문이므로 읽혀야 한다. 검은 배경 위 neutral-400 은 8.3:1 로 기준을 넘는다.
+        <div className="mt-2 text-center text-[11px] text-neutral-400">
+          화면 꺼짐 방지를 걸지 못했습니다. 화면이 꺼지면 감시가 멈춥니다.
         </div>
       )}
 
@@ -91,7 +107,12 @@ export function WorshipScreen({
           variant="strip"
           highlightHz={a.advice?.bandHz ?? null}
         />
-        <div className="mt-3 text-center text-[11px] text-neutral-600">
+        {/*
+          이 한 줄이 「멈추는 방법」을 알려주는 유일한 문장이라 반드시 읽혀야 한다.
+          검정 위 neutral-600 은 2.7:1 로 기준(4.5) 미달이고 neutral-500 도 4.4 로 모자란다.
+          neutral-400 은 8.3:1 — 여전히 회색이라 어두운 예배당에서 눈부시지 않다.
+        */}
+        <div className="mt-3 text-center text-[11px] text-neutral-400">
           {pressing ? "계속 누르고 계세요…" : "화면을 길게 눌러 감시를 멈춥니다"}
         </div>
       </div>
