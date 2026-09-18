@@ -4,6 +4,8 @@ import type { PeakInfo, Spectrum } from "./types";
 const NEIGHBOR_OCT = 1 / 6;
 /** 봉우리 자신으로 보고 이웃에서 빼는 범위(bin). */
 const SELF_BINS = 3;
+/** 저역에서 이웃 창이 자기 자신에 다 먹히지 않도록 보장하는 최소 여유(양쪽 각각). */
+const MIN_NEIGHBORS = 4;
 
 function median(values: number[]): number {
   if (values.length === 0) return -Infinity;
@@ -12,11 +14,22 @@ function median(values: number[]): number {
   return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
 }
 
-/** 이웃(±1/6 옥타브, 자기 자신 제외) 중앙값 대비 솟은 정도. */
+/**
+ * 이웃(±1/6 옥타브, 자기 자신 제외) 중앙값 대비 솟은 정도.
+ *
+ * **저역에서는 창을 넓혀야 한다.** 63Hz 는 bin 22 이고 ±1/6 옥타브가 bin 19~25
+ * 뿐이라, 자기 자신(±3)을 빼면 이웃이 **한 개도 안 남는다**. 그러면 median 이
+ * -Infinity 가 되어 PNPR 이 Infinity — 「확실한 하울링」으로 읽힌다.
+ * 베이스 대역의 아무 울림이나 경고가 된다. 어쿠스틱기타 바디 공명(100~200Hz)이
+ * 바로 이 구간이다. 양쪽에 최소 MIN_NEIGHBORS 칸은 남도록 창을 넓힌다.
+ * 고역은 원래 창이 훨씬 넓어 영향이 없다(3184Hz 에서 값 변화 없음).
+ */
 export function computePnpr(s: Spectrum, bin: number): number {
   const hz = bin * s.binHz;
-  const lo = Math.max(1, Math.floor((hz * 2 ** -NEIGHBOR_OCT) / s.binHz));
-  const hi = Math.min(s.db.length - 1, Math.ceil((hz * 2 ** NEIGHBOR_OCT) / s.binHz));
+  const octLo = Math.floor((hz * 2 ** -NEIGHBOR_OCT) / s.binHz);
+  const octHi = Math.ceil((hz * 2 ** NEIGHBOR_OCT) / s.binHz);
+  const lo = Math.max(1, Math.min(octLo, bin - SELF_BINS - MIN_NEIGHBORS));
+  const hi = Math.min(s.db.length - 1, Math.max(octHi, bin + SELF_BINS + MIN_NEIGHBORS));
   const neighbors: number[] = [];
   for (let i = lo; i <= hi; i++) {
     if (Math.abs(i - bin) <= SELF_BINS) continue;

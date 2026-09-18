@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { findPeaks, computePnpr, computePapr, computePhpr, computeShpr } from "../../src/analysis/peaks";
-import { tonePeak, harmonicTone, pinkNoise } from "../helpers/signals";
+import { tonePeak, harmonicTone, pinkNoise, flatFloor } from "../helpers/signals";
 
 describe("봉우리 검출", () => {
   it("좁은 봉우리 하나를 그 주파수에서 찾는다", () => {
@@ -21,6 +21,18 @@ describe("봉우리 검출", () => {
     const peaks = findPeaks(pinkNoise(-40), { minDb: -20 });
     expect(peaks.length).toBe(0);
   });
+
+  it("사면 위의 잔물결은 봉우리로 세지 않는다 (±2 칸까지 봐야 한다)", () => {
+    // 완만히 올라가는 사면 위에 한 칸만 톡 튀어나온 잔물결을 만든다.
+    // ±1 칸만 보면 봉우리로 세지만, ±2 칸까지 보면 아니다.
+    // 이 테스트가 없으면 ±2 조건을 ±1 로 풀어도 아무도 모른다.
+    const s = flatFloor(-100);
+    for (let i = 100; i <= 120; i++) s.db[i] = -80 + (i - 100);
+    s.db[110] += 1.5;
+    const peaks = findPeaks(s, { minDb: -90 });
+    expect(peaks.map((p) => p.bin)).not.toContain(110);
+    expect(peaks).toHaveLength(1); // 사면 꼭대기(120) 하나뿐
+  });
 });
 
 describe("PNPR — 이웃 대비", () => {
@@ -35,13 +47,30 @@ describe("PNPR — 이웃 대비", () => {
     const bin = Math.round(3184 / s.binHz);
     expect(computePnpr(s, bin)).toBeLessThan(5);
   });
+
+  it("저역에서도 이웃을 찾는다 (창이 자기 자신에 먹히면 안 된다)", () => {
+    // 63Hz 는 bin 22, ±1/6 옥타브 창은 bin 19~25 뿐이다.
+    // 자기 자신(±3)을 빼면 이웃이 0개 → median 이 -Infinity → PNPR 이 Infinity.
+    // 그러면 베이스 대역 울림이 전부 「확실한 하울링」이 된다.
+    const s = tonePeak(63, -20, -100);
+    const bin = Math.round(63 / s.binHz);
+    const pnpr = computePnpr(s, bin);
+    expect(Number.isFinite(pnpr)).toBe(true);   // 창을 안 넓히면 Infinity
+    expect(pnpr).toBeGreaterThan(70);           // 자기 제외가 빠지면 41.8 로 떨어진다
+    expect(pnpr).toBeLessThan(90);
+  });
 });
 
 describe("PAPR — 전체 평균 대비", () => {
   it("바닥 위의 단일 봉우리는 PAPR 이 크다", () => {
     const s = tonePeak(3184, -20, -100);
     const bin = Math.round(3184 / s.binHz);
-    expect(computePapr(s, bin)).toBeGreaterThan(20);
+    const papr = computePapr(s, bin);
+    // 전력 평균이면 약 36dB. dB 를 산술평균하면 약 80dB 가 나온다.
+    // 「20보다 크다」만 걸면 둘 다 통과해 아무것도 검증하지 못한다 —
+    // 위쪽 한계를 함께 걸어야 구분된다.
+    expect(papr).toBeGreaterThan(30);
+    expect(papr).toBeLessThan(50);
   });
 });
 
