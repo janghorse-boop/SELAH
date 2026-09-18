@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAnalyzer } from "../hooks/useAnalyzer";
 import { useWakeLock } from "../hooks/useWakeLock";
 import { BandMeter } from "../components/BandMeter";
@@ -16,9 +16,8 @@ export function RehearsalScreen({
   onExit: () => void;
   highlightRange?: [number, number] | null;
 }) {
-  const a = useAnalyzer(settings, "rehearsal");
+  const a = useAnalyzer(settings);
   const wake = useWakeLock(a.running);
-  const [result, setResult] = useState<{ saved: boolean } | null>(null);
 
   // 슬롯 높이를 숫자로 찍어 맞추지 않는다. min-h 는 최소값이라
   // 경고 문구(31밴드가 아니면 하울링마다 붙는다)나 파라메트릭 줄이 생기면
@@ -28,19 +27,10 @@ export function RehearsalScreen({
   const sizer = toCutAdvice({ hz: 1000, db: -20, prominence: 18 }, settings.bandPlan);
 
   useEffect(() => {
+    // 화면에 들어오면 바로 잰다. 마이크는 useAnalyzer 자신의 정리 효과가 끈다.
     void a.start();
-    // 여기서 a.stop() 을 부르지 않는다. stop() 은 **세션을 저장한다** —
-    // 화면을 나가는 것만으로 기록이 남으면 「측정 끝내고 저장」 버튼의 뜻이 사라지고,
-    // 나중에 기록 화면이 저장한 적 없는 세션으로 채워진다.
-    // 마이크는 useAnalyzer 자신의 정리 효과가 끈다.
-    // 화면에 들어올 때 한 번만 시작한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function finish() {
-    const r = a.stop();
-    setResult(r ? { saved: r.saved } : null);
-  }
 
   return (
     <div className="mx-auto max-w-lg px-4 py-4">
@@ -89,7 +79,7 @@ export function RehearsalScreen({
         variant="tall"
         highlightHz={a.advice?.bandHz ?? null}
         highlightRange={highlightRange}
-        offsetDb={settings.calibrationDb ?? 0}
+        ceilDb={a.ceilDb}
       />
 
       <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
@@ -97,24 +87,15 @@ export function RehearsalScreen({
         {a.gaps.length > 0 && <span className="text-amber-600">끊김 {a.gaps.length}회</span>}
       </div>
 
+      {/* 시작과 멈춤, 둘뿐이다. 저장은 하지 않는다. */}
       <button
-        className="mt-4 w-full rounded-lg bg-neutral-800 py-3 font-semibold text-white disabled:opacity-40"
-        onClick={finish}
-        // 「지금 재고 있는가」가 아니라 「저장할 기록이 있는가」로 막는다.
-        // 오류로 마이크가 죽어도 누를 수 있어야 하고, 저장한 뒤에는 막혀야
-        // 두 번째 누름이 방금 뜬 안내를 지우지 않는다.
-        disabled={!a.started}
+        className={`mt-4 w-full rounded-lg py-3 font-semibold text-white ${
+          a.running ? "bg-neutral-800" : "bg-green-700"
+        }`}
+        onClick={() => (a.running ? a.stop() : void a.start())}
       >
-        측정 끝내고 저장
+        {a.running ? "측정 멈추기" : "측정 시작"}
       </button>
-
-      {result && (
-        <p className={`mt-2 text-center text-sm ${result.saved ? "text-green-700" : "text-red-700"}`}>
-          {result.saved
-            ? "기록에 저장했습니다."
-            : "이 브라우저에서는 기록을 저장할 수 없어 남기지 못했습니다."}
-        </p>
-      )}
     </div>
   );
 }

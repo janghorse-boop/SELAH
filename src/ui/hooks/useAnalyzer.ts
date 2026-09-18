@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startCapture, type CaptureHandle } from "../../audio/capture";
-import { spectrumToBands, bandCenters } from "../../analysis/bands";
+import { spectrumToBands, nextCeilDb, MIN_CEIL_DB } from "../../analysis/bands";
 import { HowlDetector } from "../../analysis/howl";
 import { toCutAdvice } from "../../analysis/advice";
 import type { CutAdvice } from "../../analysis/types";
 import type { Settings } from "../../storage/settings";
-import {
-  newSessionId,
-  saveSession,
-  type Gap,
-  type HowlRecord,
-  type Session,
-} from "../../storage/sessions";
+
+/** 이번 측정에서 잡힌 하울링 하나. 화면에 보여줄 뿐 저장하지 않는다. */
+export type HowlRecord = {
+  hz: number;
+  bandHz: number;
+  atMs: number;
+  cutDb: number;
+  prominence: number;
+};
+
+/** 마이크가 끊겼던 구간. 그동안의 판정은 믿을 수 없다. */
+export type Gap = { atMs: number; durationMs: number };
 
 /** 같은 하울링을 계속 다시 알리지 않는다. 이 시간 안에는 한 번만. */
 const REPEAT_SUPPRESS_MS = 5000;
@@ -20,16 +25,9 @@ const ADVICE_HOLD_MS = 4000;
 
 export type AnalyzerState = {
   running: boolean;
-  /**
-   * 측정이 시작돼 **저장할 기록이 있는가**. `running` 과 다르다 —
-   * 오류로 마이크가 죽어도 그때까지 잰 값은 남아 있어야 한다.
-   *
-   * 하울링·끊김 개수로 이걸 판단하면 안 된다. **하나도 없는 조용한 리허설이야말로
-   * 좋은 리허설**인데, 그때 밴드 최대·평균(리허설 모드의 결과물 전체)이
-   * 통째로 사라진다. 저장이 끝나면 다시 false 가 되어 두 번 눌리지 않는다.
-   */
-  started: boolean;
   bands: number[];
+  /** 막대를 그릴 창의 천장(dB). 소리에 맞춰 따라 움직인다. */
+  ceilDb: number;
   advice: CutAdvice | null;
   /** 제약 미적용 등 상시 경고 */
   warning: string | null;
@@ -41,11 +39,11 @@ export type AnalyzerState = {
   deviceLabel: string | null;
 };
 
-export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
+export function useAnalyzer(settings: Settings) {
   const [state, setState] = useState<AnalyzerState>({
     running: false,
-    started: false,
     bands: [],
+    ceilDb: MIN_CEIL_DB + (settings.calibrationDb ?? 0),
     advice: null,
     warning: null,
     error: null,
@@ -63,8 +61,6 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
    * 초당 30번 계속 돈다. 화면은 「정지됨」인데 마이크는 살아 있다.
    */
   const startingRef = useRef(false);
-  /** 측정이 시작된 적이 있는가. 오류로 캡처가 죽은 뒤에도 기록은 살아 있다. */
-  const startedRef = useRef(false);
   /** 시작 세대. await 뒤에 「내가 아직 그 세대인가」를 확인한다.
    *  불리언은 다시 마운트되면 되살아나 두 마이크가 열릴 수 있다. */
   const genRef = useRef(0);
@@ -74,9 +70,6 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
   const adviceTimerRef = useRef<number | null>(null);
   const howlsRef = useRef<HowlRecord[]>([]);
   const gapsRef = useRef<Gap[]>([]);
-  const peakRef = useRef<number[]>([]);
-  const sumRef = useRef<number[]>([]);
-  const countRef = useRef(0);
 
   // 화면이 사라질 때 자원을 확실히 놓는다. 세션 저장은 하지 않는다 —
   // 저장은 화면이 stop() 을 부를 때만 한다. 여기서는 마이크와 타이머만 끈다.
@@ -98,15 +91,15 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     setState((p) => ({ ...p, error: null }));
     const gen = ++genRef.current;
 
-    const centers = bandCenters(settings.bandPlan);
+    // 천장이 내려갈 수 있는 하한. 보정을 쓰면 막대 값이 통째로 올라가므로
+    // 하한도 같이 올린다 — 안 그러면 하한이 무의미해져 조용한 방에서
+    // 잡음이 화면을 채운다.
+    const minCeilDb = MIN_CEIL_DB + (settings.calibrationDb ?? 0);
     detectorRef.current = new HowlDetector(settings.sensitivity);
     startedAtRef.current = Date.now();
     lastHowlAtRef.current = 0;
     howlsRef.current = [];
     gapsRef.current = [];
-    peakRef.current = new Array(centers.length).fill(-Infinity);
-    sumRef.current = new Array(centers.length).fill(0);
-    countRef.current = 0;
 
     try {
       const h = await startCapture({
@@ -121,15 +114,6 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
           // 모든 대역에 같은 값을 더하면 어느 봉우리가 튀는지는 그대로지만
           // 문턱 비교가 어긋나, 보정을 넣은 사람과 안 넣은 사람이
           // 같은 예배당에서 다른 결과를 보게 된다.
-
-          // 리허설 모드에서만 통계를 쌓는다
-          if (mode === "rehearsal") {
-            for (let i = 0; i < bands.length; i++) {
-              if (bands[i] > peakRef.current[i]) peakRef.current[i] = bands[i];
-              sumRef.current[i] += bands[i];
-            }
-            countRef.current += 1;
-          }
 
           const candidate = detectorRef.current!.push(s);
           let advice: CutAdvice | null = null;
@@ -157,6 +141,9 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
           setState((prev) => ({
             ...prev,
             bands,
+            // 천장은 앞 프레임 값에서 이어진다. 따로 ref 를 두지 않고
+            // prev 를 쓰면 상태가 한 군데에만 있어 어긋날 일이 없다.
+            ceilDb: nextCeilDb(bands, prev.ceilDb, minCeilDb),
             elapsedMs: Date.now() - startedAtRef.current,
             ...(advice ? { advice, howls: [...howlsRef.current] } : {}),
           }));
@@ -203,11 +190,9 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
         );
       }
       handleRef.current = h;
-      startedRef.current = true;
       setState((p) => ({
         ...p,
         running: true,
-        started: true,
         error: null,
         // 둘 다 뜰 수 있다. 하나가 다른 하나를 덮으면 「숫자를 믿지 말라」는
         // 경고가 조용히 사라진다.
@@ -220,38 +205,23 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
       // 성공이든 실패든 「열리는 중」을 반드시 푼다. 안 풀면 다시 시작할 수 없다.
       startingRef.current = false;
     }
-  }, [settings, mode]);
+  }, [settings]);
 
-  const stop = useCallback((): { session: Session; saved: boolean } | null => {
-    // handleRef 가 아니라 startedRef 를 본다. 오류로 캡처가 죽으면
-    // handleRef 는 null 이지만 그때까지 쌓인 기록은 버리면 안 된다.
-    if (!startedRef.current) return null;
-    startedRef.current = false;
+  /**
+   * 측정을 멈춘다. **아무것도 저장하지 않는다** — 이 앱은 지금 무슨 일이
+   * 일어나는지 보여주는 것이 전부다. 저장을 두었더니 「저장했다고 말해
+   * 놓고 안 한」 길이 세 번 생겼다.
+   */
+  const stop = useCallback(() => {
     handleRef.current?.stop();
     handleRef.current = null;
+    // 「열리는 중」에 멈췄을 수도 있다. 안 풀면 다시 시작할 수 없다.
+    startingRef.current = false;
+    // 기다리는 중인 시작이 있다면 붙지 못하게 세대를 넘긴다.
+    genRef.current++;
     if (adviceTimerRef.current) clearTimeout(adviceTimerRef.current);
-
-    const session: Session = {
-      id: newSessionId(),
-      startedAt: startedAtRef.current,
-      endedAt: Date.now(),
-      mode,
-      bandPlan: settings.bandPlan,
-      calibrationDb: settings.calibrationDb,
-      howls: howlsRef.current,
-      gaps: gapsRef.current,
-      ...(mode === "rehearsal" && countRef.current > 0
-        ? {
-            bandPeak: peakRef.current.map((v) => Math.round(v * 10) / 10),
-            bandAvg: sumRef.current.map((v) => Math.round((v / countRef.current) * 10) / 10),
-          }
-        : {}),
-    };
-
-    const saved = saveSession(session);
-    setState((p) => ({ ...p, running: false, started: false, advice: null }));
-    return { session, saved };
-  }, [mode, settings]);
+    setState((p) => ({ ...p, running: false, advice: null }));
+  }, []);
 
   return { ...state, start, stop };
 }

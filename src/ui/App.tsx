@@ -4,11 +4,10 @@ import { RehearsalScreen } from "./screens/RehearsalScreen";
 import { WorshipScreen } from "./screens/WorshipScreen";
 import { GuideScreen } from "./screens/GuideScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { HistoryScreen } from "./screens/HistoryScreen";
 import { AboutScreen } from "./screens/AboutScreen";
 import { loadSettings } from "../storage/settings";
 
-type Route = "start" | "rehearsal" | "worship" | "guide" | "settings" | "history" | "about";
+type Route = "start" | "rehearsal" | "worship" | "guide" | "settings" | "about";
 
 export default function App() {
   const [route, setRoute] = useState<Route>("start");
@@ -37,8 +36,6 @@ export default function App() {
       );
     case "settings":
       return <SettingsScreen settings={settings} onChange={setSettings} onExit={home} />;
-    case "history":
-      return <HistoryScreen onExit={home} />;
     case "about":
       return <AboutScreen onExit={home} />;
     default:
