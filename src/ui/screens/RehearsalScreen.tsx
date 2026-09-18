@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAnalyzer } from "../hooks/useAnalyzer";
+import { useWakeLock } from "../hooks/useWakeLock";
 import { BandMeter } from "../components/BandMeter";
 import { HowlCard } from "../components/HowlCard";
 import { WarningBadge } from "../components/WarningBadge";
@@ -16,7 +17,8 @@ export function RehearsalScreen({
   highlightRange?: [number, number] | null;
 }) {
   const a = useAnalyzer(settings, "rehearsal");
-  const [ended, setEnded] = useState(false);
+  const wake = useWakeLock(a.running);
+  const [result, setResult] = useState<{ saved: boolean } | null>(null);
 
   // 슬롯 높이를 숫자로 찍어 맞추지 않는다. min-h 는 최소값이라
   // 경고 문구(31밴드가 아니면 하울링마다 붙는다)나 파라메트릭 줄이 생기면
@@ -36,8 +38,8 @@ export function RehearsalScreen({
   }, []);
 
   function finish() {
-    a.stop();
-    setEnded(true);
+    const r = a.stop();
+    setResult(r ? { saved: r.saved } : null);
   }
 
   return (
@@ -56,6 +58,13 @@ export function RehearsalScreen({
       {a.warning && (
         <div className="mb-3">
           <WarningBadge text={a.warning} />
+        </div>
+      )}
+      {wake.status === "unavailable" && (
+        // 리허설도 예배만큼 길게 이어지고 화면은 똑같이 꺼진다 —
+        // 밝은 배경에 맞춘 색으로 같은 안내를 띄운다.
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          화면 꺼짐 방지를 걸지 못했습니다. 화면이 꺼지면 감시가 멈춥니다.
         </div>
       )}
 
@@ -80,6 +89,7 @@ export function RehearsalScreen({
         variant="tall"
         highlightHz={a.advice?.bandHz ?? null}
         highlightRange={highlightRange}
+        offsetDb={settings.calibrationDb ?? 0}
       />
 
       <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
@@ -90,12 +100,18 @@ export function RehearsalScreen({
       <button
         className="mt-4 w-full rounded-lg bg-neutral-800 py-3 font-semibold text-white disabled:opacity-40"
         onClick={finish}
-        disabled={!a.running}
+        disabled={!a.running && a.howls.length === 0 && a.gaps.length === 0}
       >
         측정 끝내고 저장
       </button>
 
-      {ended && <p className="mt-2 text-center text-sm text-green-700">기록에 저장했습니다.</p>}
+      {result && (
+        <p className={`mt-2 text-center text-sm ${result.saved ? "text-green-700" : "text-red-700"}`}>
+          {result.saved
+            ? "기록에 저장했습니다."
+            : "이 브라우저에서는 기록을 저장할 수 없어 남기지 못했습니다."}
+        </p>
+      )}
     </div>
   );
 }
