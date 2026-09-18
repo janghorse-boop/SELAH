@@ -17,16 +17,39 @@ describe("밴드 정의", () => {
     expect(bandCenters(10)[7]).toBe(4000);
   });
 
+  it("세 계획의 중심 주파수가 ISO 목록과 정확히 같다", () => {
+    // 길이만 세고 몇 군데만 찍으면 가운데 값이 틀려도 통과한다.
+    // 여기서는 ISO 표를 독립적으로 옮겨 적어 전수 대조한다.
+    expect(bandCenters(31)).toEqual([
+      20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
+      800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000,
+      12500, 16000, 20000,
+    ]);
+    expect(bandCenters(15)).toEqual([
+      25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000,
+    ]);
+    expect(bandCenters(10)).toEqual([
+      31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000,
+    ]);
+  });
+
+  // 경계는 구현과 같은 식을 다시 쓰지 말고 계산해 둔 값으로 못 박는다.
   it("1/3 옥타브 경계는 중심의 2^(±1/6) 이다", () => {
     const { lo, hi } = bandEdges(31, 1000);
-    expect(lo).toBeCloseTo(1000 * 2 ** (-1 / 6), 1);
-    expect(hi).toBeCloseTo(1000 * 2 ** (1 / 6), 1);
+    expect(lo).toBeCloseTo(890.9, 1);
+    expect(hi).toBeCloseTo(1122.5, 1);
+  });
+
+  it("2/3 옥타브 경계는 중심의 2^(±1/3) 이다", () => {
+    const { lo, hi } = bandEdges(15, 1000);
+    expect(lo).toBeCloseTo(793.7, 1);
+    expect(hi).toBeCloseTo(1259.9, 1);
   });
 
   it("1 옥타브 경계는 중심의 2^(±1/2) 이다", () => {
     const { lo, hi } = bandEdges(10, 1000);
-    expect(lo).toBeCloseTo(707.1, 0);
-    expect(hi).toBeCloseTo(1414.2, 0);
+    expect(lo).toBeCloseTo(707.1, 1);
+    expect(hi).toBeCloseTo(1414.2, 1);
   });
 });
 
@@ -72,5 +95,25 @@ describe("스펙트럼을 밴드로 묶기", () => {
 
   it("밴드 개수는 계획과 같다", () => {
     expect(spectrumToBands(pinkNoise(-40), 10)).toHaveLength(10);
+  });
+
+  it("같은 신호에서 15밴드는 31밴드보다 약 3dB 높다", () => {
+    const s = pinkNoise(-40);
+    const at31 = spectrumToBands(s, 31)[bandCenters(31).indexOf(1000)];
+    const at15 = spectrumToBands(s, 15)[bandCenters(15).indexOf(1000)];
+    // 2/3 옥타브는 1/3 옥타브의 두 배 폭이라 담기는 전력도 두 배 = +3.01dB.
+    // 15밴드 반폭 상수가 틀리면 여기서 어긋난다.
+    // 평탄도 검사로는 못 잡는다 — 폭이 틀려도 비율만 일정하면 여전히 평탄하다.
+    expect(at15 - at31).toBeCloseTo(3.01, 0);
+  });
+
+  it("bin 간격이 넓어 밴드에 bin 이 하나도 안 들어가도 값을 낸다", () => {
+    // 96kHz 로 열리면 bin 간격이 5.86Hz 가 되어 20Hz 밴드(폭 4.6Hz)에
+    // bin 이 하나도 안 들어간다. AudioContext 의 샘플레이트는 우리가 정하지 못한다.
+    const binHz = 96000 / 16384;
+    const db = new Float32Array(8192).fill(-80);
+    const bands = spectrumToBands({ db, binHz }, 31);
+    expect(Number.isFinite(bands[0])).toBe(true);
+    expect(bands[0]).toBeCloseTo(-80, 0);
   });
 });
