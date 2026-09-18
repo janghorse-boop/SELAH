@@ -101,6 +101,9 @@ export function WorshipScreen({
       )}
 
       <div className="mt-auto">
+        {a.deviceLabel && (
+          <div className="mb-1 text-center text-[10px] text-neutral-600">{a.deviceLabel}</div>
+        )}
         <BandMeter
           bands={a.bands}
           plan={settings.bandPlan}

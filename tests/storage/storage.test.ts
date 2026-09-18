@@ -73,6 +73,7 @@ describe("설정", () => {
     expect(got.bandPlan).toBe(10);
     expect(got.showParametric).toBe(DEFAULT_SETTINGS.showParametric);
     expect(got.sensitivity).toBe(DEFAULT_SETTINGS.sensitivity);
+    expect(got.deviceId).toBe(DEFAULT_SETTINGS.deviceId);
   });
 
   it("localStorage 를 쓸 수 없어도 던지지 않는다", () => {

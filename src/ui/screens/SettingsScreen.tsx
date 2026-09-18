@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BandPlan, Sensitivity } from "../../analysis/types";
 import { saveSettings, isStorageAvailable, type Settings } from "../../storage/settings";
+import { labelFor, listAudioInputs, onDeviceChange, type AudioInput } from "../../audio/devices";
 
 const PLANS: { v: BandPlan; label: string; note: string }[] = [
   { v: 31, label: "31밴드", note: "1/3 옥타브 · 가장 흔한 구성" },
@@ -37,6 +38,13 @@ export function SettingsScreen({
   // 매 렌더마다(= 입력 한 글자마다) 저장소를 실제로 건드리지 않는다.
   const [storageOk] = useState(() => isStorageAvailable());
 
+  const [inputs, setInputs] = useState<AudioInput[]>([]);
+  useEffect(() => {
+    const refresh = () => { void listAudioInputs().then(setInputs); };
+    refresh();
+    return onDeviceChange(refresh);
+  }, []);
+
   const typed = calibText.trim();
   const calibInvalid =
     typed !== "" && !(Number.isFinite(Number(typed)) && Number(typed) >= CALIB_MIN && Number(typed) <= CALIB_MAX);
@@ -60,7 +68,43 @@ export function SettingsScreen({
         </div>
       )}
 
-      <div className="text-[10px] uppercase tracking-wider text-neutral-400">EQ 밴드 수</div>
+      <div className="text-[10px] uppercase tracking-wider text-neutral-400">입력 기기</div>
+      {inputs.length <= 1 ? (
+        <p className="mt-1.5 rounded-lg bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
+          이 브라우저는 입력 기기를 골라줄 수 없습니다. 외부 마이크를 연결하면 자동으로 그쪽으로 넘어갑니다.
+          (아이폰 사파리가 이렇습니다)
+        </p>
+      ) : (
+        <div className="mt-1.5 space-y-1.5">
+          <button
+            onClick={() => update({ deviceId: null, deviceLabel: null })}
+            className={`w-full rounded-lg border px-3 py-2.5 text-left ${
+              settings.deviceId === null ? "border-blue-600 bg-blue-50" : "border-neutral-200"
+            }`}
+          >
+            <div className="text-sm font-semibold">시스템 기본</div>
+            <div className="text-[11px] text-neutral-500">폰이 정한 기기를 씁니다</div>
+          </button>
+          {inputs.map((d, i) => (
+            <button
+              key={d.deviceId}
+              onClick={() => update({ deviceId: d.deviceId, deviceLabel: labelFor(d, i) })}
+              className={`w-full rounded-lg border px-3 py-2.5 text-left ${
+                settings.deviceId === d.deviceId ? "border-blue-600 bg-blue-50" : "border-neutral-200"
+              }`}
+            >
+              <div className="text-sm font-semibold">{labelFor(d, i)}</div>
+            </button>
+          ))}
+        </div>
+      )}
+      {inputs.some((d) => d.label.trim() === "") && (
+        <p className="mt-1.5 text-[11px] text-neutral-500">
+          마이크를 한 번 허용하면 기기의 실제 이름이 보입니다.
+        </p>
+      )}
+
+      <div className="mt-6 text-[10px] uppercase tracking-wider text-neutral-400">EQ 밴드 수</div>
       <div className="mt-1.5 space-y-1.5">
         {PLANS.map((p) => (
           <button

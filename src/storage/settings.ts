@@ -6,6 +6,10 @@ export type Settings = {
   calibrationDb: number | null;
   sensitivity: Sensitivity;
   showParametric: boolean;
+  /** 고른 입력 기기. null 이면 시스템 기본. */
+  deviceId: string | null;
+  /** 화면에 보여줄 이름. 기기가 사라졌을 때 「무엇을 쓰고 있었는지」를 말해 준다. */
+  deviceLabel: string | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -13,6 +17,8 @@ export const DEFAULT_SETTINGS: Settings = {
   calibrationDb: null,
   sensitivity: "normal",
   showParametric: false,
+  deviceId: null,
+  deviceLabel: null,
 };
 
 const KEY = "selah.settings";

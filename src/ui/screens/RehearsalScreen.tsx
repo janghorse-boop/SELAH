@@ -43,7 +43,10 @@ export function RehearsalScreen({
   return (
     <div className="mx-auto max-w-lg px-4 py-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold">리허설 모드</h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-lg font-bold">리허설 모드</h1>
+          {a.deviceLabel && <span className="text-[11px] text-neutral-500">{a.deviceLabel}</span>}
+        </div>
         <button className="text-sm text-neutral-500" onClick={onExit}>
           나가기
         </button>

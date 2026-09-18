@@ -1,5 +1,6 @@
 import type { Spectrum } from "../analysis/types";
-import { MIC_CONSTRAINTS, checkConstraints, type ConstraintReport } from "./constraints";
+import { checkConstraints, type ConstraintReport } from "./constraints";
+import { micConstraints } from "./devices";
 
 export const FFT_SIZE = 16384;
 export const FRAME_MS = 1000 / 30;
@@ -24,6 +25,12 @@ export function toCaptureError(e: unknown): CaptureError {
   if (name === "NotFoundError") {
     return { kind: "nodevice", message: "마이크를 찾지 못했습니다." };
   }
+  if (name === "OverconstrainedError" || name === "NotReadableError") {
+    return {
+      kind: "deviceGone",
+      message: "고른 마이크를 찾을 수 없습니다. 연결을 확인하거나 설정에서 다시 고르십시오.",
+    };
+  }
   return { kind: "unknown", message: "마이크를 여는 중 알 수 없는 문제가 생겼습니다." };
 }
 
@@ -46,7 +53,7 @@ export function binHzFor(sampleRate: number, fftSize: number): number {
   return sampleRate / fftSize;
 }
 
-export type CaptureErrorKind = "insecure" | "denied" | "nodevice" | "lost" | "unknown";
+export type CaptureErrorKind = "insecure" | "denied" | "nodevice" | "lost" | "deviceGone" | "unknown";
 
 export type CaptureCallbacks = {
   onFrame: (s: Spectrum) => void;
@@ -59,9 +66,14 @@ export type CaptureHandle = {
   stop: () => void;
   report: ConstraintReport;
   sampleRate: number;
+  /** 실제로 열린 기기. 고른 기기와 다르면 호출한 쪽이 화면에 알려야 한다. */
+  device: { deviceId: string; deviceLabel: string };
 };
 
-export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle> {
+export async function startCapture(
+  cb: CaptureCallbacks,
+  deviceId: string | null = null,
+): Promise<CaptureHandle> {
   if (!navigator.mediaDevices?.getUserMedia) {
     cb.onError(INSECURE_ERROR.kind, INSECURE_ERROR.message);
     throw new Error(INSECURE_ERROR.message);
@@ -69,7 +81,7 @@ export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle>
 
   let stream: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    stream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
   } catch (e) {
     const { kind, message } = toCaptureError(e);
     cb.onError(kind, message);
@@ -145,5 +157,11 @@ export async function startCapture(cb: CaptureCallbacks): Promise<CaptureHandle>
     void ctx.close();
   }
 
-  return { stop, report, sampleRate: ctx.sampleRate };
+  const openedSettings = track.getSettings();
+  return {
+    stop,
+    report,
+    sampleRate: ctx.sampleRate,
+    device: { deviceId: openedSettings.deviceId ?? "", deviceLabel: track.label },
+  };
 }

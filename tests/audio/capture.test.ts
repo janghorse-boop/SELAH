@@ -30,6 +30,14 @@ describe("마이크 오류 안내", () => {
     );
     expect(msgs.size).toBe(3);
   });
+
+  it("기기가 사라진 오류는 deviceGone 이고, 어떻게 할지 알려준다", () => {
+    for (const name of ["OverconstrainedError", "NotReadableError"]) {
+      const r = toCaptureError({ name });
+      expect(r.kind).toBe("deviceGone");
+      expect(r.message).toContain("설정");
+    }
+  });
 });
 
 describe("https 아님", () => {

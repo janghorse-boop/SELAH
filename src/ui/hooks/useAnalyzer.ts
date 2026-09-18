@@ -28,6 +28,8 @@ export type AnalyzerState = {
   elapsedMs: number;
   howls: HowlRecord[];
   gaps: Gap[];
+  /** 실제로 열린 입력 기기 이름. 화면에 「지금 무엇으로 재고 있는지」를 보여준다. */
+  deviceLabel: string | null;
 };
 
 export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
@@ -40,6 +42,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
     elapsedMs: 0,
     howls: [],
     gaps: [],
+    deviceLabel: null,
   });
 
   const handleRef = useRef<CaptureHandle | null>(null);
@@ -168,7 +171,7 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
           // 끊긴 프레임에서만 gaps 를 화면으로 올린다
           setState((p) => ({ ...p, gaps: [...gapsRef.current] }));
         },
-      });
+      }, settings.deviceId);
 
       if (!aliveRef.current) {
         // 권한 창이 떠 있는 동안 화면이 사라졌다. 정리 코드는 그때 핸들이
@@ -179,7 +182,20 @@ export function useAnalyzer(settings: Settings, mode: "rehearsal" | "worship") {
       }
 
       handleRef.current = h;
-      setState((p) => ({ ...p, running: true, error: null, warning: h.report.message }));
+      setState((p) => ({
+        ...p,
+        running: true,
+        error: null,
+        warning: h.report.message,
+        deviceLabel: h.device.deviceLabel || null,
+      }));
+
+      if (settings.deviceId && h.device.deviceId !== settings.deviceId) {
+        setState((p) => ({
+          ...p,
+          warning: `고른 마이크(${settings.deviceLabel ?? "외부 기기"})를 쓸 수 없어 기본 마이크로 재고 있습니다.`,
+        }));
+      }
     } catch {
       /* onError 에서 이미 알렸다 */
     } finally {
