@@ -1,4 +1,4 @@
-import { bandCenters, formatHz } from "../../analysis/bands";
+import { bandCenters, barPct, formatHz } from "../../analysis/bands";
 import type { BandPlan } from "../../analysis/types";
 
 /** 화면에 보여줄 하한/상한(dB). 이 범위 밖은 자른다. */
@@ -11,15 +11,20 @@ export function BandMeter({
   variant = "tall",
   highlightHz = null,
   highlightRange = null,
+  offsetDb = 0,
 }: {
   bands: number[];
   plan: BandPlan;
   variant?: "tall" | "strip";
   highlightHz?: number | null;
   highlightRange?: [number, number] | null;
+  /** 절대 dB 보정값. 값만 더하고 창을 그대로 두면 모든 막대가 천장에 붙는다. */
+  offsetDb?: number;
 }) {
   const centers = bandCenters(plan);
   const height = variant === "tall" ? "h-40" : "h-9";
+  const floor = FLOOR_DB + offsetDb;
+  const ceil = CEIL_DB + offsetDb;
 
   const isHot = (hz: number) => highlightHz !== null && hz === highlightHz;
   const inRange = (hz: number) =>
@@ -29,9 +34,7 @@ export function BandMeter({
     <div>
       <div className={`flex items-end gap-px ${height}`}>
         {centers.map((hz, i) => {
-          const raw = bands[i];
-          const v = Number.isFinite(raw) ? raw : FLOOR_DB;
-          const pct = Math.min(100, Math.max(0, ((v - FLOOR_DB) / (CEIL_DB - FLOOR_DB)) * 100));
+          const pct = barPct(bands[i] ?? FLOOR_DB, floor, ceil);
           const color = isHot(hz)
             ? "bg-red-500"
             : inRange(hz)

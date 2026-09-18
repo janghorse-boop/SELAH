@@ -109,6 +109,7 @@ export function WorshipScreen({
           plan={settings.bandPlan}
           variant="strip"
           highlightHz={a.advice?.bandHz ?? null}
+          offsetDb={settings.calibrationDb ?? 0}
         />
         {/*
           이 한 줄이 「멈추는 방법」을 알려주는 유일한 문장이라 반드시 읽혀야 한다.

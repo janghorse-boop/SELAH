@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bandCenters, bandEdges, spectrumToBands, nearestBand, formatHz } from "../../src/analysis/bands";
+import { bandCenters, bandEdges, spectrumToBands, nearestBand, formatHz, barPct } from "../../src/analysis/bands";
 import { tonePeak, pinkNoise } from "../helpers/signals";
 
 describe("밴드 정의", () => {
@@ -123,5 +123,22 @@ describe("스펙트럼을 밴드로 묶기", () => {
     const bands = spectrumToBands({ db, binHz }, 31);
     expect(Number.isFinite(bands[0])).toBe(true);
     expect(bands[0]).toBeCloseTo(-80, 0);
+  });
+});
+
+describe("막대 높이", () => {
+  it("보정값만큼 창도 함께 움직인다", () => {
+    expect(barPct(-55, -100, -10)).toBeCloseTo(50, 0);
+    // +100 보정이면 값도 창도 100 올라가 같은 높이여야 한다
+    expect(barPct(45, 0, 90)).toBeCloseTo(50, 0);
+    // 창을 안 옮기면 천장에 붙는다 — 고치기 전의 동작을 명시해 둔다
+    expect(barPct(45, -100, -10)).toBe(100);
+  });
+
+  it("범위 밖과 유한하지 않은 값은 0~100 안으로 잡는다", () => {
+    expect(barPct(-Infinity, -100, -10)).toBe(0);
+    expect(barPct(NaN, -100, -10)).toBe(0);
+    expect(barPct(0, -100, -10)).toBe(100);
+    expect(barPct(-200, -100, -10)).toBe(0);
   });
 });
