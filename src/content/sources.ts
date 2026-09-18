@@ -153,7 +153,7 @@ export const SOURCES: SourceGuide[] = [
     ],
     howlBands: [100, 125, 160, 200],
     howlNote: "마이크를 함께 쓸 때만 납니다. 바디 공명이 원인이므로 EQ 보다 사운드홀 커버가 먼저입니다.",
-    conflicts: ["보컬 — 2~4kHz 에서 겹친다"],
+    conflicts: ["보컬 — 3~5kHz 에서 겹친다"],
   },
   {
     id: "bass",

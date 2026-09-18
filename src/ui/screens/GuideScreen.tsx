@@ -63,7 +63,7 @@ function Card({
           {narrowZones.map((z) => (
             <span key={`${z.from}-${z.to}`} className="inline-flex items-center gap-1">
               <span className={`inline-block h-2 w-2 rounded-sm ${ZONE_COLOR[z.kind]}`} />
-              {z.label} {formatHz(z.from)}~{formatHz(z.to)}
+              {z.label} {formatHz(z.from)}~{formatHz(z.to)}Hz
             </span>
           ))}
         </div>

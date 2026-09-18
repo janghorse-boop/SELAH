@@ -81,7 +81,11 @@ export function SettingsScreen({
           <br />연결을 확인하거나 아래에서 다시 고르십시오.
         </p>
       )}
-      {inputs.length <= 1 ? (
+      {inputs.length === 0 ? (
+        <p className="mt-1.5 rounded-lg bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
+          아직 입력 기기 목록을 받지 못했습니다. 마이크를 한 번 허용하면 목록이 나타납니다.
+        </p>
+      ) : inputs.length === 1 ? (
         // 「브라우저가 목록을 못 준다」와 「지금 기기가 하나뿐이다」는 다른 얘기다.
         // 외부 마이크를 뽑으면 멀쩡한 안드로이드에서도 목록이 하나로 줄어든다 —
         // 그때 「이 브라우저는 못 고른다」고 하면 담당자가 폰을 탓하게 된다.

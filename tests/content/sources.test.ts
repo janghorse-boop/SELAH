@@ -116,6 +116,8 @@ describe("소스별 가이드", () => {
         expect(p.detail.trim().length, `${s.id}/${p.symptom}`).toBeGreaterThan(0);
       }
       for (const c of s.conflicts) expect(c.trim().length, s.id).toBeGreaterThan(0);
+      if (s.howlNote !== null) expect(s.howlNote.trim().length, s.id).toBeGreaterThan(0);
+      if (s.highPass !== null) expect(s.highPass.trim().length, s.id).toBeGreaterThan(0);
     }
   });
 });

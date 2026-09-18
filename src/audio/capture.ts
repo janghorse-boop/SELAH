@@ -93,7 +93,10 @@ export async function startCapture(
   // 폰의 녹음 표시가 켜진 채로 남는다.
   let track: MediaStreamTrack;
   let report: ConstraintReport;
-  let ctx: AudioContext;
+  // 대입 전에 catch 로 빠질 수 있어 처음부터 undefined 를 허용해 둔다 —
+  // 그래야 「대입되기 전일 수도 있다」는 사실이 타입에 그대로 남아
+  // catch 에서 단언(!) 없이 안전하게 다룰 수 있다.
+  let ctx: AudioContext | undefined;
   let analyser: AnalyserNode;
   try {
     track = stream.getAudioTracks()[0];
@@ -108,13 +111,19 @@ export async function startCapture(
     // analyser 를 destination 에 연결하지 않는다 — 소리를 되돌려보내면 그 자체가 하울링이다
   } catch (e) {
     stream.getTracks().forEach((t) => t.stop());
+    // ctx 가 만들어진 뒤(analyser·connect 등)에 던졌다면 컨텍스트가 열린 채 남는다.
+    void ctx?.close();
     const { kind, message } = toCaptureError(e);
     cb.onError(kind, message);
     throw e;
   }
 
+  // catch 가 항상 throw 하므로 여기 도달했다면 ctx 는 반드시 할당돼 있다.
+  // 그 사실은 이 지점에서는 좁혀지지만, let 변수라 아래 stop() 클로저
+  // 안에서는 다시 넓어진다 — const 로 옮겨 담아 클로저에도 좁혀진 타입을 넘긴다.
+  const audioCtx = ctx;
   const buffer = new Float32Array(analyser.frequencyBinCount);
-  const binHz = binHzFor(ctx.sampleRate, FFT_SIZE);
+  const binHz = binHzFor(audioCtx.sampleRate, FFT_SIZE);
 
   let stopped = false;
   let lastFrameAt = performance.now();
@@ -154,14 +163,14 @@ export async function startCapture(
     clearInterval(timer);
     track.stop();
     stream.getTracks().forEach((t) => t.stop());
-    void ctx.close();
+    void audioCtx.close();
   }
 
   const openedSettings = track.getSettings();
   return {
     stop,
     report,
-    sampleRate: ctx.sampleRate,
+    sampleRate: audioCtx.sampleRate,
     device: { deviceId: openedSettings.deviceId ?? "", deviceLabel: track.label },
   };
 }
